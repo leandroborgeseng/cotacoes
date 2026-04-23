@@ -89,7 +89,6 @@ export function AdminPanel() {
   const [cnpjFilter, setCnpjFilter] = useState("");
   const [openEq, setOpenEq] = useState(false);
   const [editing, setEditing] = useState<Equipamento | null>(null);
-  const [jsonImport, setJsonImport] = useState("");
 
   const formState = useMemo(
     () => ({
@@ -202,28 +201,19 @@ export function AdminPanel() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const importJson = useMutation({
-    mutationFn: async () => {
-      const parsed = JSON.parse(jsonImport) as unknown;
-      const arr = Array.isArray(parsed) ? parsed : (parsed as { equipamentos?: unknown }).equipamentos;
-      if (!Array.isArray(arr)) throw new Error("JSON deve ser um array de equipamentos.");
-      for (const row of arr) {
-        const o = row as Record<string, unknown>;
-        const nome =
-          String(o.nome_padronizado ?? o.nomePadronizado ?? o.nome ?? "").trim() ||
-          String(o.nome_original ?? o.nomeOriginal ?? "").trim();
-        if (!nome) continue;
-        const res = await fetch("/api/admin/equipamentos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ hospitalId: hid, ...o }),
-        });
-        if (!res.ok) throw new Error(`Falha ao importar: ${nome}`);
-      }
+  const setAtivoEquipamento = useMutation({
+    mutationFn: async ({ id, ativo }: { id: string; ativo: boolean }) => {
+      const res = await fetch(`/api/admin/equipamentos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo }),
+      });
+      if (!res.ok) throw new Error("Falha ao atualizar status.");
     },
-    onSuccess: () => {
-      toast.success("Importação concluída.");
-      setJsonImport("");
+    onSuccess: (_, { ativo }) => {
+      toast.success(
+        ativo ? "Item voltou à lista da pré-cotação." : "Marcado como já adquirido — não aparece mais no convite para fornecedores.",
+      );
       void qc.invalidateQueries({ queryKey: ["admin", "equipamentos", hid] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -299,8 +289,8 @@ export function AdminPanel() {
           <div>
             <CardTitle className="text-lg">Equipamentos</CardTitle>
             <CardDescription>
-              Catálogo deste hospital — o que os fornecedores veem no convite. O valor unitário orçado é só para o
-              hospital comparar com as cotações recebidas.
+              Itens ativos são os que aparecem no convite para cotação. Use &quot;Já adquirido&quot; para retirar um item
+              da lista sem apagar o histórico. O valor unitário orçado é só para comparar com as cotações recebidas.
             </CardDescription>
           </div>
           <Dialog
@@ -371,80 +361,163 @@ export function AdminPanel() {
             Novo equipamento
           </Button>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-8">
           <div className="space-y-2">
-            <Label>
-              Importar JSON (array simples ou enriquecido: nome_padronizado, descricao_editavel, setor_hospitalar,
-              preco_unitario_orcado ou valor_estimado, requisitos_minimos, id, etc.)
-            </Label>
-            <Textarea
-              rows={4}
-              value={jsonImport}
-              onChange={(e) => setJsonImport(e.target.value)}
-              placeholder='[{"id":"eq_001","nome_padronizado":"...","setor_hospitalar":"UTI"}]'
-            />
-            <Button type="button" variant="secondary" size="sm" disabled={!jsonImport.trim() || importJson.isPending} onClick={() => importJson.mutate()}>
-              Importar
-            </Button>
+            <p className="text-sm font-medium text-foreground">Na pré-cotação (convite)</p>
+            <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead className="w-20 text-right">Qtd</TableHead>
+                    <TableHead className="w-28 text-right">Orçado (un.)</TableHead>
+                    <TableHead>Setor</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(equipamentos.data ?? []).filter((e) => e.ativo).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                        Nenhum item ativo. Crie um equipamento ou reative um que estava como já adquirido.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                  {(equipamentos.data ?? [])
+                    .filter((e) => e.ativo)
+                    .map((eq) => (
+                      <TableRow key={eq.id}>
+                        <TableCell className="max-w-[220px] font-medium">
+                          <span className="block">{eq.nome}</span>
+                          {eq.nomeOriginal ? (
+                            <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{eq.nomeOriginal}</span>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">{eq.quantidade}</TableCell>
+                        <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
+                          {money(eq.precoUnitarioOrcado)}
+                        </TableCell>
+                        <TableCell className="max-w-[140px] text-sm text-muted-foreground">{eq.setorHospitalar || "—"}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditing(eq);
+                                setDraft({
+                                  nome: eq.nome,
+                                  descricao: eq.descricao,
+                                  quantidade: String(eq.quantidade),
+                                  precoUnitarioOrcado: valorParaInputOrcado(eq.precoUnitarioOrcado),
+                                });
+                                setOpenEq(true);
+                              }}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={setAtivoEquipamento.isPending}
+                              onClick={() => {
+                                if (confirm("Marcar como já adquirido? O item sai do convite para novas cotações.")) {
+                                  setAtivoEquipamento.mutate({ id: eq.id, ativo: false });
+                                }
+                              }}
+                            >
+                              Já adquirido
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                if (confirm("Remover este equipamento do cadastro?")) deleteEquip.mutate(eq.id);
+                              }}
+                            >
+                              Excluir
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead className="w-20 text-right">Qtd</TableHead>
-                  <TableHead className="w-28 text-right">Orçado (un.)</TableHead>
-                  <TableHead>Setor</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {equipamentos.data?.map((eq) => (
-                  <TableRow key={eq.id}>
-                    <TableCell className="max-w-[220px] font-medium">
-                      <span className="block">{eq.nome}</span>
-                      {eq.nomeOriginal ? (
-                        <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{eq.nomeOriginal}</span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">{eq.quantidade}</TableCell>
-                    <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-                      {money(eq.precoUnitarioOrcado)}
-                    </TableCell>
-                    <TableCell className="max-w-[140px] text-sm text-muted-foreground">{eq.setorHospitalar || "—"}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditing(eq);
-                          setDraft({
-                            nome: eq.nome,
-                            descricao: eq.descricao,
-                            quantidade: String(eq.quantidade),
-                            precoUnitarioOrcado: valorParaInputOrcado(eq.precoUnitarioOrcado),
-                          });
-                          setOpenEq(true);
-                        }}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => {
-                          if (confirm("Remover este equipamento?")) deleteEquip.mutate(eq.id);
-                        }}
-                      >
-                        Excluir
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          {(equipamentos.data ?? []).some((e) => !e.ativo) ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Já adquiridos (fora do convite)</p>
+              <div className="overflow-x-auto rounded-lg border border-dashed">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead className="w-20 text-right">Qtd</TableHead>
+                      <TableHead className="w-28 text-right">Orçado (un.)</TableHead>
+                      <TableHead>Setor</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(equipamentos.data ?? [])
+                      .filter((e) => !e.ativo)
+                      .map((eq) => (
+                        <TableRow key={eq.id} className="bg-muted/20 text-muted-foreground">
+                          <TableCell className="max-w-[220px] font-medium text-foreground/80">
+                            <span className="block">{eq.nome}</span>
+                            {eq.nomeOriginal ? (
+                              <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{eq.nomeOriginal}</span>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{eq.quantidade}</TableCell>
+                          <TableCell className="text-right text-sm tabular-nums">{money(eq.precoUnitarioOrcado)}</TableCell>
+                          <TableCell className="max-w-[140px] text-sm">{eq.setorHospitalar || "—"}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditing(eq);
+                                  setDraft({
+                                    nome: eq.nome,
+                                    descricao: eq.descricao,
+                                    quantidade: String(eq.quantidade),
+                                    precoUnitarioOrcado: valorParaInputOrcado(eq.precoUnitarioOrcado),
+                                  });
+                                  setOpenEq(true);
+                                }}
+                              >
+                                Editar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={setAtivoEquipamento.isPending}
+                                onClick={() => setAtivoEquipamento.mutate({ id: eq.id, ativo: true })}
+                              >
+                                Voltar à pré-cotação
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => {
+                                  if (confirm("Remover este equipamento do cadastro?")) deleteEquip.mutate(eq.id);
+                                }}
+                              >
+                                Excluir
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
