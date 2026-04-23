@@ -82,12 +82,14 @@ function truncLabel(s: string, max = 32) {
   return t.length <= max ? t : `${t.slice(0, max)}…`;
 }
 
-/** Soma (quantidade × preço unitário orçado) por lista de equipamentos. */
+/** Soma (quantidade × preço unitário orçado) por lista de equipamentos + totais de itens/unidades. */
 function investimentoPorLista(equips: Equipamento[]) {
   let total = 0;
   let linhasComOrcamento = 0;
   let linhasSemOrcamento = 0;
+  let unidadesTotal = 0;
   for (const e of equips) {
+    unidadesTotal += e.quantidade;
     const raw = e.precoUnitarioOrcado;
     const pu = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
     if (!Number.isFinite(pu) || pu <= 0) {
@@ -97,7 +99,7 @@ function investimentoPorLista(equips: Equipamento[]) {
     linhasComOrcamento += 1;
     total += e.quantidade * pu;
   }
-  return { total, linhas: equips.length, linhasComOrcamento, linhasSemOrcamento };
+  return { total, linhas: equips.length, linhasComOrcamento, linhasSemOrcamento, unidadesTotal };
 }
 
 function brl(n: number) {
@@ -397,12 +399,21 @@ export function AdminPanel() {
                       <Target className="size-4 shrink-0" aria-hidden />
                       Previsto (a adquirir)
                     </div>
+                    <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                      <div>
+                        <dt className="text-muted-foreground">Itens previstos</dt>
+                        <dd className="text-lg font-semibold tabular-nums text-foreground">{dashFinanceiro.previsto.linhas}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Unidades (soma das qtd.)</dt>
+                        <dd className="text-lg font-semibold tabular-nums text-foreground">{dashFinanceiro.previsto.unidadesTotal}</dd>
+                      </div>
+                    </dl>
                     <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">{brl(dashFinanceiro.previsto.total)}</p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {dashFinanceiro.previsto.linhas} item(ns) na pré-cotação ·{" "}
                       {dashFinanceiro.previsto.linhasSemOrcamento > 0
-                        ? `${dashFinanceiro.previsto.linhasSemOrcamento} sem valor orçado (não entram na soma)`
-                        : "todos com valor orçado"}
+                        ? `${dashFinanceiro.previsto.linhasSemOrcamento} item(ns) sem valor orçado (não entram na soma em R$)`
+                        : "Todos os itens têm valor orçado para o total em R$."}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm">
@@ -410,12 +421,21 @@ export function AdminPanel() {
                       <PackageCheck className="size-4 shrink-0" aria-hidden />
                       Realizado (adquiridos)
                     </div>
+                    <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                      <div>
+                        <dt className="text-muted-foreground">Itens já comprados</dt>
+                        <dd className="text-lg font-semibold tabular-nums text-foreground">{dashFinanceiro.realizado.linhas}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Unidades (soma das qtd.)</dt>
+                        <dd className="text-lg font-semibold tabular-nums text-foreground">{dashFinanceiro.realizado.unidadesTotal}</dd>
+                      </div>
+                    </dl>
                     <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">{brl(dashFinanceiro.realizado.total)}</p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {dashFinanceiro.realizado.linhas} item(ns) fora do convite ·{" "}
                       {dashFinanceiro.realizado.linhasSemOrcamento > 0
-                        ? `${dashFinanceiro.realizado.linhasSemOrcamento} sem valor orçado`
-                        : "todos com valor orçado"}
+                        ? `${dashFinanceiro.realizado.linhasSemOrcamento} item(ns) sem valor orçado`
+                        : "Todos os itens têm valor orçado para o total em R$."}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm sm:col-span-2 lg:col-span-1">
@@ -423,6 +443,20 @@ export function AdminPanel() {
                       <CircleDollarSign className="size-4 shrink-0" aria-hidden />
                       Projeto (previsto + realizado)
                     </div>
+                    <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                      <div>
+                        <dt className="text-muted-foreground">Itens no catálogo</dt>
+                        <dd className="text-lg font-semibold tabular-nums text-foreground">
+                          {dashFinanceiro.previsto.linhas + dashFinanceiro.realizado.linhas}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Unidades totais</dt>
+                        <dd className="text-lg font-semibold tabular-nums text-foreground">
+                          {dashFinanceiro.previsto.unidadesTotal + dashFinanceiro.realizado.unidadesTotal}
+                        </dd>
+                      </div>
+                    </dl>
                     <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">
                       {brl(dashFinanceiro.previsto.total + dashFinanceiro.realizado.total)}
                     </p>
