@@ -1,94 +1,44 @@
-import { Suspense } from "react";
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export const dynamic = "force-dynamic";
-import { EquipmentDashboard } from "@/components/equipment/equipment-dashboard";
-import { EquipmentExportButton } from "@/components/equipment/equipment-export-button";
-import { EquipmentFilters } from "@/components/equipment/equipment-filters";
-import { EquipmentImport } from "@/components/equipment/equipment-import";
-import { EquipmentTable } from "@/components/equipment/equipment-table";
-import type { EquipmentRowDTO } from "@/components/equipment/types";
-import {
-  getDashboardStats,
-  listCategorias,
-  listEquipments,
-  parseListFilters,
-} from "@/lib/equipment-queries";
-import type { EquipmentStatus } from "@/domain/equipment-status";
-import type { Equipment } from "@/generated/prisma/client";
-
-function toRowDTO(e: Equipment): EquipmentRowDTO {
-  return {
-    id: e.id,
-    import_ref: e.import_ref,
-    nome_padronizado: e.nome_padronizado,
-    nome_original: e.nome_original,
-    tipo: e.tipo,
-    categoria: e.categoria,
-    subcategoria: e.subcategoria,
-    setor_hospitalar: e.setor_hospitalar,
-    anvisa_classe: e.anvisa_classe,
-    criticidade: e.criticidade,
-    descricao_original: e.descricao_original,
-    descricao_editavel: e.descricao_editavel,
-    quantidade: e.quantidade,
-    valor_estimado: Number(e.valor_estimado),
-    valor_total_estimado: Number(e.valor_total_estimado),
-    status: e.status as EquipmentStatus,
-    ativo: e.ativo,
-    observacoes: e.observacoes,
-    createdAt: e.createdAt.toISOString(),
-  };
-}
-
-export default async function Home(props: PageProps<"/">) {
-  const searchParams = await props.searchParams;
-  const filters = parseListFilters(searchParams);
-
-  const [stats, categorias, rows] = await Promise.all([
-    getDashboardStats(),
-    listCategorias(),
-    listEquipments(filters),
-  ]);
-
-  const dto = rows.map(toRowDTO);
-  const valorTotal = Number(stats.valorTotalEstimado ?? 0);
-
+export default function Home() {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10">
-      <header className="space-y-2">
-        <div className="inline-flex items-center rounded-full border bg-background/60 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">
-          Cotações hospitalares
-        </div>
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Gestão de cotação</h1>
-            <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-              Importe equipamentos, organize por status e gere uma planilha CSV pronta para envio a fornecedores.
-            </p>
-          </div>
-          <Suspense fallback={null}>
-            <EquipmentExportButton />
-          </Suspense>
-        </div>
-      </header>
+    <div className="mx-auto flex min-h-[80vh] max-w-2xl flex-col justify-center gap-8 px-4 py-16">
+      <div className="space-y-3 text-center">
+        <p className="text-xs font-medium uppercase tracking-wider text-primary">Pré-cotação hospitalar</p>
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Portal para fornecedores</h1>
+        <p className="text-sm text-muted-foreground md:text-base">
+          Fornecedores acessam um link exclusivo, marcam os equipamentos que fornecem, enviam preços e anexam a proposta em PDF. O hospital acompanha tudo no painel interno.
+        </p>
+      </div>
 
-      <EquipmentDashboard
-        valorTotalEstimado={valorTotal}
-        totalItens={stats.totalItens}
-        prontosParaCotacao={stats.prontosParaCotacao}
-      />
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Como testar localmente</CardTitle>
+          <CardDescription>
+            Após migrar o banco e rodar o seed, use o link de demonstração (token fixo no seed).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <Link href="/c/demo-convite-local" className={cn(buttonVariants({ size: "lg" }), "rounded-full justify-center")}>
+            Abrir convite demo
+          </Link>
+          <Link
+            href="/admin/login"
+            className={cn(buttonVariants({ size: "lg", variant: "outline" }), "rounded-full justify-center")}
+          >
+            Painel administrativo
+          </Link>
+        </CardContent>
+      </Card>
 
-      <EquipmentImport />
-
-      <Suspense
-        fallback={
-          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Carregando filtros…</div>
-        }
-      >
-        <EquipmentFilters categorias={categorias} value={filters} />
-      </Suspense>
-
-      <EquipmentTable rows={dto} />
+      <p className="text-center text-xs text-muted-foreground">
+        Variáveis: <code className="rounded bg-muted px-1 py-0.5">DATABASE_URL</code>,{" "}
+        <code className="rounded bg-muted px-1 py-0.5">ADMIN_PASSWORD</code>,{" "}
+        <code className="rounded bg-muted px-1 py-0.5">ADMIN_JWT_SECRET</code> (mín. 16 caracteres).
+      </p>
     </div>
   );
 }

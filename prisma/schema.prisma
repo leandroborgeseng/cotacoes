@@ -7,36 +7,97 @@ datasource db {
   provider = "sqlite"
 }
 
-enum EquipmentStatus {
-  rascunho
-  pronto_para_cotacao
-  enviado
-  cotado
+model Hospital {
+  id        String   @id @default(cuid())
+  nome      String
+  cnpj      String
+  cidade    String
+  uf        String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  convites     ConviteCotacao[]
+  equipamentos Equipamento[]
+
+  @@index([cnpj])
 }
 
-model Equipment {
-  id                   String          @id @default(cuid())
-  import_ref           String?
-  nome_padronizado     String
-  nome_original        String          @default("")
-  tipo                 String          @default("")
-  categoria            String
-  subcategoria         String          @default("")
-  setor_hospitalar     String          @default("")
-  anvisa_classe        String          @default("")
-  criticidade          String          @default("")
-  descricao_original   String          @default("")
-  descricao_editavel   String          @default("")
-  requisitos_minimos   Json            @default("[]")
-  quantidade           Int             @default(1)
-  valor_estimado       Decimal
-  valor_total_estimado Decimal
-  status               EquipmentStatus @default(rascunho)
-  ativo                Boolean         @default(true)
-  observacoes          String          @default("")
-  createdAt            DateTime        @default(now())
+model ConviteCotacao {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  hospitalId String
+  hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  titulo     String   @default("Pré-Cotação Hospitalar")
+  textoIntro String
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now())
 
-  @@index([status])
-  @@index([categoria])
+  cotacoes Cotacao[]
+
+  @@index([hospitalId])
+}
+
+model Equipamento {
+  id          String   @id @default(cuid())
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  nome        String
+  descricao   String   @default("")
+  quantidade  Int      @default(1)
+  categoria   String   @default("")
+  criticidade String   @default("")
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  cotacaoItens CotacaoItem[]
+
+  @@index([hospitalId])
   @@index([ativo])
+}
+
+model Cotacao {
+  id String @id @default(cuid())
+
+  conviteId String
+  convite   ConviteCotacao @relation(fields: [conviteId], references: [id], onDelete: Cascade)
+
+  fornecedorNome    String
+  fornecedorCnpj    String
+  representanteNome String
+  telefone          String
+  email             String
+
+  feira            Boolean @default(false)
+  feiraNome        String  @default("")
+  stand            String  @default("")
+  feiraLocalizacao String  @default("")
+
+  arquivoPdf String
+
+  createdAt DateTime @default(now())
+
+  itens CotacaoItem[]
+
+  @@index([conviteId])
+  @@index([fornecedorCnpj])
+  @@index([createdAt])
+}
+
+model CotacaoItem {
+  id String @id @default(cuid())
+
+  cotacaoId String
+  cotacao   Cotacao @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
+
+  equipamentoId String
+  equipamento   Equipamento @relation(fields: [equipamentoId], references: [id], onDelete: Restrict)
+
+  precoUnitario             Decimal
+  prazoEntrega              Int
+  condicoesPagamento        String
+  condicoesPagamentoDetalhe String @default("")
+  observacoes               String @default("")
+
+  @@index([cotacaoId])
+  @@index([equipamentoId])
 }
