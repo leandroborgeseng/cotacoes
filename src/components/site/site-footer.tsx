@@ -14,7 +14,7 @@ export function SiteFooter() {
             Início
           </Link>
           <Link href="/c/demo-convite-local" className="hover:text-foreground">
-            Convite demonstração
+            Preencher cotação
           </Link>
           <Link href="/admin/login" className="hover:text-foreground">
             Acesso hospital

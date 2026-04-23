@@ -37,7 +37,7 @@ export function SiteTopNav() {
               "rounded-full px-3 text-xs sm:px-4 sm:text-sm",
             )}
           >
-            Testar convite
+            Preencher cotação
           </Link>
           <Link
             href="/admin/login"

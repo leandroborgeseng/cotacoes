@@ -101,7 +101,7 @@ export default async function Home() {
               href="/c/demo-convite-local"
               className={cn(buttonVariants({ size: "lg" }), "h-12 rounded-full px-8 text-base shadow-md shadow-primary/20")}
             >
-              Simular convite (demonstração)
+              Preencher cotação
             </Link>
             <Link
               href="/admin/login"
