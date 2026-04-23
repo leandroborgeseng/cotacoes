@@ -42,7 +42,7 @@ type CotacaoRow = {
   feiraNome: string;
   stand: string;
   createdAt: string;
-  convite: { hospital: { nome: string } };
+  convite: { hospital: { id: string; nome: string } };
   itens: Array<{
     id: string;
     precoUnitario: unknown;
@@ -80,6 +80,69 @@ function linhasComparacao(a: CotacaoRow, b: CotacaoRow) {
 function truncLabel(s: string, max = 32) {
   const t = s.trim();
   return t.length <= max ? t : `${t.slice(0, max)}…`;
+}
+
+type ItemCotacao = CotacaoRow["itens"][number];
+
+/** Matriz equipamento × cotações para comparação em um único quadro. */
+function montarRelatorioConsolidado(
+  hospitalId: string,
+  equipamentos: Equipamento[],
+  cotacoes: CotacaoRow[],
+): {
+  colunas: CotacaoRow[];
+  linhas: Array<{
+    equipamentoId: string;
+    nome: string;
+    quantidade: number;
+    orcado: unknown;
+    porCotacao: Record<string, ItemCotacao | null>;
+  }>;
+} {
+  const colunas = cotacoes
+    .filter((c) => c.convite.hospital.id === hospitalId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const mapNome = new Map<string, string>();
+  const mapQtd = new Map<string, number>();
+  const mapOrcado = new Map<string, unknown>();
+
+  for (const e of equipamentos) {
+    mapNome.set(e.id, e.nome);
+    mapQtd.set(e.id, e.quantidade);
+    mapOrcado.set(e.id, e.precoUnitarioOrcado);
+  }
+  for (const c of colunas) {
+    for (const it of c.itens) {
+      const id = it.equipamento.id;
+      if (!mapNome.has(id)) mapNome.set(id, it.equipamento.nome);
+      if (!mapQtd.has(id)) mapQtd.set(id, 1);
+      if (!mapOrcado.has(id)) mapOrcado.set(id, it.equipamento.precoUnitarioOrcado);
+    }
+  }
+
+  const ativosIds = equipamentos.filter((e) => e.ativo).map((e) => e.id);
+  const idsCotados = [...new Set(colunas.flatMap((c) => c.itens.map((i) => i.equipamento.id)))];
+  const ordemIds = [
+    ...ativosIds.sort((a, b) => (mapNome.get(a) || "").localeCompare(mapNome.get(b) || "", "pt")),
+    ...idsCotados.filter((id) => !ativosIds.includes(id)).sort((a, b) => (mapNome.get(a) || "").localeCompare(mapNome.get(b) || "", "pt")),
+  ];
+
+  const linhas = ordemIds.map((equipamentoId) => {
+    const porCotacao: Record<string, ItemCotacao | null> = {};
+    for (const cot of colunas) {
+      porCotacao[cot.id] = cot.itens.find((i) => i.equipamento.id === equipamentoId) ?? null;
+    }
+    return {
+      equipamentoId,
+      nome: mapNome.get(equipamentoId) || "—",
+      quantidade: mapQtd.get(equipamentoId) ?? 1,
+      orcado: mapOrcado.get(equipamentoId),
+      porCotacao,
+    };
+  });
+
+  return { colunas, linhas };
 }
 
 /** Soma (quantidade × preço unitário orçado) por lista de equipamentos + totais de itens/unidades. */
@@ -191,14 +254,23 @@ export function AdminPanel() {
   });
 
   const cotacoes = useQuery({
-    queryKey: ["admin", "cotacoes", cnpjFilter],
+    queryKey: ["admin", "cotacoes", cnpjFilter, hid],
     queryFn: async () => {
-      const q = cnpjFilter.trim() ? `?cnpj=${encodeURIComponent(cnpjFilter.trim())}` : "";
-      const res = await fetch(`/api/admin/cotacoes${q}`);
+      const p = new URLSearchParams();
+      if (hid) p.set("hospitalId", hid);
+      if (cnpjFilter.trim()) p.set("cnpj", cnpjFilter.trim());
+      const qs = p.toString();
+      const res = await fetch(`/api/admin/cotacoes${qs ? `?${qs}` : ""}`);
       if (!res.ok) throw new Error("Falha ao carregar cotações.");
       return (await res.json()) as CotacaoRow[];
     },
+    enabled: !!hid,
   });
+
+  const relatorioConsolidado = useMemo((): ReturnType<typeof montarRelatorioConsolidado> => {
+    if (!hid) return { colunas: [], linhas: [] };
+    return montarRelatorioConsolidado(hid, equipamentos.data ?? [], cotacoes.data ?? []);
+  }, [hid, equipamentos.data, cotacoes.data]);
 
   const createConvite = useMutation({
     mutationFn: async () => {
@@ -748,10 +820,78 @@ export function AdminPanel() {
 
       <Card className="rounded-3xl border-border/60 shadow-sm">
         <CardHeader>
+          <CardTitle className="text-lg">Relatório consolidado</CardTitle>
+          <CardDescription>
+            Todas as cotações deste hospital em uma única tabela: cada linha é um equipamento e cada coluna é uma
+            proposta de fornecedor (preço unitário e prazo). Role horizontalmente se houver muitas cotações.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!hid || cotacoes.isLoading ? (
+            <div className="h-32 animate-pulse rounded-xl bg-muted/50" />
+          ) : relatorioConsolidado.colunas.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Ainda não há cotações para este hospital. Quando os fornecedores enviarem propostas, elas aparecerão aqui
+              e na lista abaixo.
+            </p>
+          ) : (
+            <div className="max-h-[min(72vh,680px)] overflow-auto rounded-lg border">
+              <Table className="min-w-max text-sm">
+                <TableHeader>
+                  <TableRow className="bg-muted/80 hover:bg-muted/80">
+                    <TableHead className="sticky left-0 z-20 min-w-[220px] max-w-[280px] border-r bg-muted/95 shadow-sm">
+                      Equipamento
+                    </TableHead>
+                    {relatorioConsolidado.colunas.map((cot) => (
+                      <TableHead key={cot.id} className="min-w-[120px] max-w-[160px] whitespace-normal align-bottom text-xs font-semibold leading-tight">
+                        <span className="line-clamp-2">{truncLabel(cot.fornecedorNome, 36)}</span>
+                        <span className="mt-1 block font-normal text-muted-foreground">
+                          {new Date(cot.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                        </span>
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {relatorioConsolidado.linhas.map((row) => (
+                    <TableRow key={row.equipamentoId} className="border-border/50">
+                      <TableCell className="sticky left-0 z-[1] max-w-[280px] border-r bg-card align-top font-medium whitespace-normal shadow-sm">
+                        <span className="block leading-snug">{row.nome}</span>
+                        <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                          Qtd {row.quantidade} · Orçado {money(row.orcado)}
+                        </span>
+                      </TableCell>
+                      {relatorioConsolidado.colunas.map((cot) => {
+                        const cel = row.porCotacao[cot.id];
+                        return (
+                          <TableCell key={cot.id} className="min-w-[120px] align-top text-right tabular-nums">
+                            {cel ? (
+                              <div className="space-y-0.5">
+                                <div className="font-semibold text-foreground">{money(cel.precoUnitario)}</div>
+                                <div className="text-xs text-muted-foreground">{cel.prazoEntrega} dias</div>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-3xl border-border/60 shadow-sm">
+        <CardHeader>
           <CardTitle className="text-lg">Cotações recebidas</CardTitle>
           <CardDescription>
-            Dados persistem entre deploys. Filtre por CNPJ, edite valores cotados, compare duas propostas ou exclua uma
-            cotação inteira. “Vs orçado” usa o valor unitário orçado no cadastro do equipamento. PDFs de até{" "}
+            Lista filtrada pelo hospital selecionado acima. Filtre por CNPJ, edite valores cotados, compare duas
+            propostas ou exclua uma cotação inteira. “Vs orçado” usa o valor unitário orçado no cadastro do equipamento.
+            PDFs de até{" "}
             {(MAX_PDF_BYTES / (1024 * 1024)).toFixed(0)} MB.
           </CardDescription>
         </CardHeader>
