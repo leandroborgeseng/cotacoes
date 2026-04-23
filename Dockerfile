@@ -23,4 +23,4 @@ ENV DATABASE_URL=file:./data/cotacoes.db
 
 # Railway injeta PORT; localmente 3000
 EXPOSE 3000
-CMD ["sh", "-c", "mkdir -p data && npx prisma migrate deploy && exec npx next start -H 0.0.0.0 -p ${PORT:-3000}"]
+CMD ["sh", "-c", "mkdir -p data && npx prisma migrate deploy && npx prisma db seed && exec npx next start -H 0.0.0.0 -p ${PORT:-3000}"]

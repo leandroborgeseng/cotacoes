@@ -218,7 +218,20 @@ export function PortalCotacao({ token }: { token: string }) {
     return <div className="p-8 text-center text-muted-foreground">Carregando convite…</div>;
   }
   if (q.isError || !q.data) {
-    return <div className="p-8 text-center text-destructive">Convite não encontrado ou inativo.</div>;
+    return (
+      <div className="mx-auto max-w-lg space-y-4 px-4 py-12 text-center">
+        <p className="font-medium text-destructive">Convite não encontrado ou inativo.</p>
+        <p className="text-pretty text-sm text-muted-foreground">
+          O token <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">{token}</span> não existe
+          neste banco ou o convite foi desativado. Use o link enviado pelo hospital ou gere um novo no painel admin.
+        </p>
+        <p className="text-pretty text-xs text-muted-foreground">
+          Em deploy novo, rode <code className="rounded bg-muted px-1">npx prisma migrate deploy</code> e{" "}
+          <code className="rounded bg-muted px-1">npx prisma db seed</code> (o seed cria o convite demo sem apagar
+          cotações, a menos que use <code className="rounded bg-muted px-1">SEED_RESET=true</code>).
+        </p>
+      </div>
+    );
   }
 
   const { convite } = q.data;

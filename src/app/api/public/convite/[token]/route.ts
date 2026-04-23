@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 type Ctx = { params: Promise<{ token: string }> };
 
 export async function GET(_req: Request, ctx: Ctx) {
-  const { token } = await ctx.params;
+  const raw = (await ctx.params).token;
+  const token = decodeURIComponent(raw).trim();
   const convite = await prisma.conviteCotacao.findFirst({
     where: { token, ativo: true },
     include: {
