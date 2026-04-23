@@ -19,5 +19,6 @@ RUN npx prisma migrate deploy && npm run build
 ENV NODE_ENV=production
 ENV DATABASE_URL=file:/data/cotacoes.db
 
+# Railway (e outros) definem PORT; localmente costuma ser 3000
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma migrate deploy && exec npx next start -H 0.0.0.0 -p 3000"]
+CMD ["sh", "-c", "npx prisma migrate deploy && exec npx next start -H 0.0.0.0 -p ${PORT:-3000}"]
