@@ -5,7 +5,7 @@ const TEXTO =
 
 const HOSPITAL = {
   nome: "São Joaquim Hospital e Maternidade",
-  cnpj: "50.486.026/0001-60",
+  cnpj: "45.309.606/0003-03",
   cidade: "Franca",
   uf: "SP",
 } as const;
