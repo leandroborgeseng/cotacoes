@@ -26,9 +26,9 @@ Requisitos: build com `better-sqlite3` precisa de toolchain nativa (o `Dockerfil
 
 ## Deploy na Railway
 
-Este projeto está configurado para **SQLite em arquivo**. Na Railway o disco do container costuma ser **efêmero** (dados somem no redeploy). Para produção na nuvem o caminho usual é voltar a **PostgreSQL** ou usar banco gerenciado (Turso/libSQL, etc.).
+O **Dockerfile** grava o SQLite em **`/app/data/cotacoes.db`** (diretório criado no start). Na Railway **não** existe volume em `/data` como no `docker-compose` local; usar `file:/data/...` quebrava o container e gerava **502**.
 
-Se você voltar a usar Postgres no futuro, ajuste `prisma/schema.prisma`, o adaptador em `src/lib/prisma.ts` e a `DATABASE_URL`.
+O disco do container na Railway é **efêmero** (dados somem a cada redeploy). Para produção estável na nuvem, o usual é **PostgreSQL** ou banco gerenciado (Turso/libSQL, etc.).
 
 ## Variáveis
 

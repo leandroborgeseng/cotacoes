@@ -49,3 +49,6 @@ next-env.d.ts
 # SQLite local
 /prisma/*.db
 /prisma/*.db-journal
+
+# SQLite em runtime (Docker / local com DATABASE_URL em ./data)
+/data/

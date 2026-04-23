@@ -10,15 +10,17 @@ COPY prisma.config.ts ./prisma.config.ts
 RUN npm ci
 
 COPY . .
+# Garante client após o COPY (arquivos gerados não vão no Git)
+RUN npx prisma generate
 
 # Banco temporário só para build (migrate + Next)
 ENV DATABASE_URL=file:./prisma/build.db
 RUN npx prisma migrate deploy && npm run build
 
-# Em runtime o arquivo SQLite fica no volume /data (ver docker-compose)
+# Runtime: SQLite em disco gravável dentro da imagem (Railway não monta /data por padrão)
 ENV NODE_ENV=production
-ENV DATABASE_URL=file:/data/cotacoes.db
+ENV DATABASE_URL=file:./data/cotacoes.db
 
-# Railway (e outros) definem PORT; localmente costuma ser 3000
+# Railway injeta PORT; localmente 3000
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma migrate deploy && exec npx next start -H 0.0.0.0 -p ${PORT:-3000}"]
+CMD ["sh", "-c", "mkdir -p data && npx prisma migrate deploy && exec npx next start -H 0.0.0.0 -p ${PORT:-3000}"]
