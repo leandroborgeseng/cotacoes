@@ -27,7 +27,7 @@ model ConviteCotacao {
   token      String   @unique
   hospitalId String
   hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
-  titulo     String   @default("Pré-Cotação Hospitalar")
+  titulo     String   @default("Pré-Cotação Feira Hospitalar")
   textoIntro String
   ativo      Boolean  @default(true)
   createdAt  DateTime @default(now())

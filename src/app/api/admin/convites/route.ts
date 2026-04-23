@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     data: {
       token,
       hospitalId: body.hospitalId,
-      titulo: body.titulo?.trim() || "Pré-Cotação Hospitalar",
+      titulo: body.titulo?.trim() || "Pré-Cotação Feira Hospitalar",
       textoIntro: body.textoIntro?.trim() || TEXTO_PADRAO,
     },
   });

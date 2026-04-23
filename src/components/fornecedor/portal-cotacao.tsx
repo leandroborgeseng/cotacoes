@@ -304,7 +304,7 @@ export function PortalCotacao({ token }: { token: string }) {
       <PortalStepIndicator step={step} />
 
       <header className="overflow-hidden rounded-3xl border border-border/60 bg-card/95 px-5 py-6 shadow-md shadow-primary/5 sm:px-8 sm:py-8">
-        <p className="text-center text-xs font-semibold uppercase tracking-widest text-primary">Pré-cotação hospitalar</p>
+        <p className="text-center text-xs font-semibold uppercase tracking-widest text-primary">Pré-cotação Feira Hospitalar</p>
         <h1 className="mt-2 text-balance text-center text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
           {convite.titulo}
         </h1>

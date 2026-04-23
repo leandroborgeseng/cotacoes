@@ -17,11 +17,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pré-cotação hospitalar | São Joaquim",
+  title: "Pré-cotação Feira Hospitalar | São Joaquim",
   description:
-    "Envie sua proposta em minutos: pré-cotação de equipamentos para o São Joaquim Hospital e Maternidade. Simples, claro e pensado para fornecedores.",
+    "Envie sua proposta em minutos: pré-cotação de equipamentos na Feira Hospitalar para o São Joaquim Hospital e Maternidade. Simples, claro e pensado para fornecedores.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Pré-cotação", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Pré-cotação Feira", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

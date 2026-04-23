@@ -25,7 +25,7 @@ export function SiteTopNav() {
             priority={path === "/"}
           />
           <div className="hidden min-w-0 sm:block">
-            <p className="truncate text-xs font-semibold text-foreground sm:text-sm">Pré-cotação hospitalar</p>
+            <p className="truncate text-xs font-semibold text-foreground sm:text-sm">Pré-cotação Feira Hospitalar</p>
             <p className="truncate text-[11px] text-muted-foreground sm:text-xs">Fornecedores · São Joaquim</p>
           </div>
         </Link>

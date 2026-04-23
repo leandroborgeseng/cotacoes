@@ -67,7 +67,7 @@ export default async function Home() {
           </div>
           <p className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary sm:text-sm">
             <Sparkles className="size-3.5 shrink-0 sm:size-4" aria-hidden />
-            Pré-cotação hospitalar
+            Pré-cotação Feira Hospitalar
           </p>
           <h1 className="mt-5 text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl md:text-5xl">
             Sua proposta em poucos minutos, com clareza e confiança

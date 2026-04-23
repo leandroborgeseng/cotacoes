@@ -30,7 +30,7 @@ export async function ensureDemoInvite(): Promise<void> {
       data: {
         token: DEMO_CONVITE_TOKEN,
         hospitalId: hospital.id,
-        titulo: "Pré-Cotação Hospitalar",
+        titulo: "Pré-Cotação Feira Hospitalar",
         textoIntro: TEXTO,
         ativo: true,
       },
@@ -42,7 +42,7 @@ export async function ensureDemoInvite(): Promise<void> {
         ativo: true,
         hospitalId: hospital.id,
         textoIntro: TEXTO,
-        titulo: "Pré-Cotação Hospitalar",
+        titulo: "Pré-Cotação Feira Hospitalar",
       },
     });
   }
@@ -72,7 +72,7 @@ export async function resetAndSeedFull(): Promise<void> {
     data: {
       token: DEMO_CONVITE_TOKEN,
       hospitalId: hospital.id,
-      titulo: "Pré-Cotação Hospitalar",
+      titulo: "Pré-Cotação Feira Hospitalar",
       textoIntro: TEXTO,
     },
   });

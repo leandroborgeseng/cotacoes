@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Pré-Cotação Hospitalar",
-    short_name: "Pré-Cotação",
-    description: "Portal de pré-cotação para fornecedores hospitalares.",
+    name: "Pré-Cotação Feira Hospitalar",
+    short_name: "Feira Hospitalar",
+    description: "Portal de pré-cotação na Feira Hospitalar para fornecedores.",
     start_url: "/",
     display: "standalone",
     background_color: "#f8fafc",
