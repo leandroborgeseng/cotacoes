@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { dadosCatalogoCreateMany, SEED_EQUIPAMENTOS_GENERICOS } from "@/lib/catalogo-equipamentos-oficial";
+import { equipamentoFromImportRow } from "@/lib/equipamento-map";
 
 const TEXTO =
   "Este processo refere-se a uma pré-cotação de equipamentos hospitalares com objetivo de levantamento de mercado. Existe a possibilidade de fechamento durante a Feira Hospitalar. Caso o representante esteja presente na feira, favor informar os dados abaixo.";
@@ -11,30 +13,6 @@ const HOSPITAL = {
 } as const;
 
 export const DEMO_CONVITE_TOKEN = "demo-convite-local";
-
-const EQUIPAMENTOS = [
-  {
-    nome: "Monitor multiparamétrico",
-    descricao: "Monitor de sinais vitais com PNI e SpO2.",
-    quantidade: 10,
-    categoria: "Monitoramento",
-    criticidade: "alta",
-  },
-  {
-    nome: "Bomba de infusão volumétrica",
-    descricao: "Bomba com biblioteca de medicamentos e alarmes.",
-    quantidade: 25,
-    categoria: "Infusão",
-    criticidade: "alta",
-  },
-  {
-    nome: "Cama hospitalar elétrica",
-    descricao: "Cama com acionamento elétrico e grades.",
-    quantidade: 5,
-    categoria: "Leitos",
-    criticidade: "média",
-  },
-] as const;
 
 /**
  * Garante hospital, convite demo e equipamentos (idempotente).
@@ -70,10 +48,26 @@ export async function ensureDemoInvite(): Promise<void> {
   }
 
   const qtd = await prisma.equipamento.count({ where: { hospitalId: hospital.id } });
+  const comRefCatalogo = await prisma.equipamento.count({
+    where: { hospitalId: hospital.id, importRef: { startsWith: "eq_" } },
+  });
+
+  /** Migração suave: banco antigo com os 3 itens demo sem `importRef` → substitui pelo catálogo oficial. */
+  const legadoTresSemCatalogo =
+    hospital.cnpj === HOSPITAL.cnpj && qtd === 3 && comRefCatalogo === 0;
+
+  if (legadoTresSemCatalogo) {
+    await prisma.equipamento.deleteMany({ where: { hospitalId: hospital.id } });
+    await prisma.equipamento.createMany({ data: dadosCatalogoCreateMany(hospital.id) });
+    return;
+  }
+
   if (qtd === 0) {
-    await prisma.equipamento.createMany({
-      data: EQUIPAMENTOS.map((e) => ({ ...e, hospitalId: hospital.id })),
-    });
+    const data =
+      hospital.cnpj === HOSPITAL.cnpj
+        ? dadosCatalogoCreateMany(hospital.id)
+        : SEED_EQUIPAMENTOS_GENERICOS.map((e) => equipamentoFromImportRow(e as unknown as Record<string, unknown>, hospital.id));
+    await prisma.equipamento.createMany({ data });
   }
 }
 
@@ -95,6 +89,6 @@ export async function resetAndSeedFull(): Promise<void> {
     },
   });
   await prisma.equipamento.createMany({
-    data: EQUIPAMENTOS.map((e) => ({ ...e, hospitalId: hospital.id })),
+    data: dadosCatalogoCreateMany(hospital.id),
   });
 }

@@ -24,6 +24,13 @@ type Equipamento = {
   categoria: string;
   criticidade: string;
   ativo: boolean;
+  importRef?: string;
+  nomeOriginal?: string;
+  subcategoria?: string;
+  setorHospitalar?: string;
+  anvisaClasse?: string;
+  tipo?: string;
+  requisitosMinimos?: string;
 };
 
 type CotacaoRow = {
@@ -182,19 +189,14 @@ export function AdminPanel() {
       if (!Array.isArray(arr)) throw new Error("JSON deve ser um array de equipamentos.");
       for (const row of arr) {
         const o = row as Record<string, unknown>;
-        const nome = String(o.nome ?? "").trim();
+        const nome =
+          String(o.nome_padronizado ?? o.nomePadronizado ?? o.nome ?? "").trim() ||
+          String(o.nome_original ?? o.nomeOriginal ?? "").trim();
         if (!nome) continue;
         const res = await fetch("/api/admin/equipamentos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            hospitalId: hid,
-            nome,
-            descricao: String(o.descricao ?? ""),
-            quantidade: Number(o.quantidade) || 1,
-            categoria: String(o.categoria ?? ""),
-            criticidade: String(o.criticidade ?? ""),
-          }),
+          body: JSON.stringify({ hospitalId: hid, ...o }),
         });
         if (!res.ok) throw new Error(`Falha ao importar: ${nome}`);
       }
@@ -343,8 +345,16 @@ export function AdminPanel() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label>Importar JSON (array de objetos com nome, descricao, quantidade, categoria, criticidade)</Label>
-            <Textarea rows={4} value={jsonImport} onChange={(e) => setJsonImport(e.target.value)} placeholder='[{"nome":"...","quantidade":1}]' />
+            <Label>
+              Importar JSON (array simples ou enriquecido: nome_padronizado, descricao_editavel, setor_hospitalar,
+              anvisa_classe, requisitos_minimos, id, etc.)
+            </Label>
+            <Textarea
+              rows={4}
+              value={jsonImport}
+              onChange={(e) => setJsonImport(e.target.value)}
+              placeholder='[{"id":"eq_001","nome_padronizado":"...","categoria":"Imagem"}]'
+            />
             <Button type="button" variant="secondary" size="sm" disabled={!jsonImport.trim() || importJson.isPending} onClick={() => importJson.mutate()}>
               Importar
             </Button>
@@ -355,6 +365,8 @@ export function AdminPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
+                  <TableHead>Setor</TableHead>
+                  <TableHead>ANVISA</TableHead>
                   <TableHead>Qtd</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -363,7 +375,14 @@ export function AdminPanel() {
               <TableBody>
                 {equipamentos.data?.map((eq) => (
                   <TableRow key={eq.id}>
-                    <TableCell className="font-medium">{eq.nome}</TableCell>
+                    <TableCell className="max-w-[220px] font-medium">
+                      <span className="block">{eq.nome}</span>
+                      {eq.nomeOriginal ? (
+                        <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{eq.nomeOriginal}</span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="max-w-[140px] text-sm text-muted-foreground">{eq.setorHospitalar || "—"}</TableCell>
+                    <TableCell className="tabular-nums text-sm">{eq.anvisaClasse || "—"}</TableCell>
                     <TableCell>{eq.quantidade}</TableCell>
                     <TableCell className="text-muted-foreground">{eq.categoria || "—"}</TableCell>
                     <TableCell className="text-right space-x-2">

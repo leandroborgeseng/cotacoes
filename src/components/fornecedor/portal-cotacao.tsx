@@ -29,8 +29,25 @@ type ConviteApi = {
     quantidade: number;
     categoria: string;
     criticidade: string;
+    nomeOriginal?: string;
+    setorHospitalar?: string;
+    anvisaClasse?: string;
+    subcategoria?: string;
+    tipo?: string;
+    requisitosMinimos?: string;
   }>;
 };
+
+function requisitosLegivel(jsonOuTexto: string | undefined): string {
+  if (!jsonOuTexto?.trim()) return "—";
+  try {
+    const a = JSON.parse(jsonOuTexto) as unknown;
+    if (Array.isArray(a)) return a.map((x) => String(x)).join(" · ");
+  } catch {
+    /* texto livre */
+  }
+  return jsonOuTexto.trim();
+}
 
 const topoSchema = z.object({
   fornecedorNome: z.string().min(2, "Informe o nome da empresa."),
@@ -408,12 +425,15 @@ export function PortalCotacao({ token }: { token: string }) {
               </CardHeader>
               <CardContent className="rounded-b-3xl p-0">
                 <div className="max-h-[min(75vh,720px)] overflow-auto">
-                  <Table className="min-w-[920px]">
+                  <Table className="min-w-[1180px]">
                     <TableHeader>
                       <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
                         <TableHead className="sticky left-0 z-10 w-12 min-w-[3rem] bg-muted/50 px-2">Forneço</TableHead>
                         <TableHead className="sticky left-12 z-10 min-w-[200px] max-w-[280px] bg-muted/50 px-2">Nome</TableHead>
-                        <TableHead className="min-w-[220px] px-2">Descrição</TableHead>
+                        <TableHead className="min-w-[200px] px-2">Descrição</TableHead>
+                        <TableHead className="min-w-[120px] px-2">Setor</TableHead>
+                        <TableHead className="w-14 px-2">ANVISA</TableHead>
+                        <TableHead className="min-w-[160px] px-2">Requisitos mín.</TableHead>
                         <TableHead className="w-16 text-right px-2">Qtd</TableHead>
                         <TableHead className="min-w-[120px] px-2">Categoria</TableHead>
                         <TableHead className="min-w-[100px] px-2">Criticidade</TableHead>
@@ -426,9 +446,17 @@ export function PortalCotacao({ token }: { token: string }) {
                             <Checkbox checked={!!selected[eq.id]} onCheckedChange={(v) => toggleEquip(eq.id, v === true)} />
                           </TableCell>
                           <TableCell className="sticky left-12 z-[1] max-w-[280px] bg-card px-2 font-medium whitespace-normal">
-                            {eq.nome}
+                            <span className="block">{eq.nome}</span>
+                            {eq.nomeOriginal ? (
+                              <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{eq.nomeOriginal}</span>
+                            ) : null}
                           </TableCell>
                           <TableCell className="whitespace-normal px-2 text-sm text-muted-foreground">{eq.descricao}</TableCell>
+                          <TableCell className="whitespace-normal px-2 text-sm">{eq.setorHospitalar || "—"}</TableCell>
+                          <TableCell className="px-2 text-sm tabular-nums">{eq.anvisaClasse || "—"}</TableCell>
+                          <TableCell className="whitespace-normal px-2 text-xs text-muted-foreground">
+                            {requisitosLegivel(eq.requisitosMinimos)}
+                          </TableCell>
                           <TableCell className="text-right tabular-nums px-2">{eq.quantidade}</TableCell>
                           <TableCell className="whitespace-normal px-2 text-sm">{eq.categoria || "—"}</TableCell>
                           <TableCell className="whitespace-normal px-2 text-sm">{eq.criticidade || "—"}</TableCell>

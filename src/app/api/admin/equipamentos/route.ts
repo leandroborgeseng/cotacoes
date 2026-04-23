@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { equipamentoFromImportRow } from "@/lib/equipamento-map";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -15,25 +16,21 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as {
-    hospitalId?: string;
-    nome?: string;
-    descricao?: string;
-    quantidade?: number;
-    categoria?: string;
-    criticidade?: string;
-  };
-  if (!body.hospitalId || !body.nome?.trim()) {
-    return NextResponse.json({ error: "hospitalId e nome são obrigatórios." }, { status: 400 });
+  const body = (await req.json()) as Record<string, unknown>;
+  const hospitalId = typeof body.hospitalId === "string" ? body.hospitalId : "";
+  if (!hospitalId) {
+    return NextResponse.json({ error: "hospitalId é obrigatório." }, { status: 400 });
+  }
+  const base = equipamentoFromImportRow(body, hospitalId);
+  if (!base.nome?.trim()) {
+    return NextResponse.json({ error: "nome (ou nome_padronizado) é obrigatório." }, { status: 400 });
   }
   const row = await prisma.equipamento.create({
     data: {
-      hospitalId: body.hospitalId,
-      nome: body.nome.trim(),
-      descricao: body.descricao?.trim() ?? "",
-      quantidade: Math.max(1, Math.floor(Number(body.quantidade) || 1)),
-      categoria: body.categoria?.trim() ?? "",
-      criticidade: body.criticidade?.trim() ?? "",
+      ...base,
+      nome: base.nome.trim(),
+      descricao: base.descricao ?? "",
+      ...(typeof body.ativo === "boolean" ? { ativo: body.ativo } : {}),
     },
   });
   return NextResponse.json(row);

@@ -49,10 +49,20 @@ model Equipamento {
   ativo       Boolean  @default(true)
   createdAt   DateTime @default(now())
 
+  /** Referência estável no catálogo (ex.: eq_001) — usada para sincronizar importações. */
+  importRef          String @default("")
+  nomeOriginal       String @default("")
+  subcategoria       String @default("")
+  setorHospitalar    String @default("")
+  anvisaClasse       String @default("")
+  tipo               String @default("")
+  requisitosMinimos  String @default("")
+
   cotacaoItens CotacaoItem[]
 
   @@index([hospitalId])
   @@index([ativo])
+  @@index([hospitalId, importRef])
 }
 
 model Cotacao {
