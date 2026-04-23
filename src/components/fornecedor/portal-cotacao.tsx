@@ -34,11 +34,11 @@ type ConviteApi = {
 };
 
 const topoSchema = z.object({
-  fornecedorNome: z.string().min(2),
-  fornecedorCnpj: z.string().min(8),
-  representanteNome: z.string().min(2),
-  telefone: z.string().min(8),
-  email: z.string().email(),
+  fornecedorNome: z.string().min(2, "Informe o nome da empresa."),
+  fornecedorCnpj: z.string().min(8, "CNPJ muito curto."),
+  representanteNome: z.string().min(2, "Informe o representante."),
+  telefone: z.string().min(8, "Telefone muito curto."),
+  email: z.string().email("E-mail inválido."),
   feira: z.boolean(),
   feiraNome: z.string().optional(),
   stand: z.string().optional(),
@@ -68,7 +68,6 @@ export function PortalCotacao({ token }: { token: string }) {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [itemsDraft, setItemsDraft] = useState<Record<string, ItemDraft>>({});
   const [pdf, setPdf] = useState<File | null>(null);
-  const [showFullCatalog, setShowFullCatalog] = useState(false);
 
   const q = useQuery({
     queryKey: ["convite", token],
@@ -102,14 +101,6 @@ export function PortalCotacao({ token }: { token: string }) {
   }, [q.data, selected]);
 
   const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
-
-  const visibleEquipamentos = useMemo(() => {
-    if (!q.data) return [];
-    const { equipamentos } = q.data;
-    const showAll = selectedCount === 0 || showFullCatalog;
-    if (!showAll) return equipamentos.filter((e) => selected[e.id]);
-    return equipamentos;
-  }, [q.data, selected, selectedCount, showFullCatalog]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -176,25 +167,39 @@ export function PortalCotacao({ token }: { token: string }) {
     });
   }
 
-  function goStep2() {
-    const ok = form.trigger();
-    ok.then((valid) => {
-      if (!valid) return;
-      const n = Object.values(selected).filter(Boolean).length;
-      if (n < 1) {
-        toast.error("Selecione ao menos um equipamento.");
+  function firstFormErrorMessage(): string | undefined {
+    const errs = form.formState.errors;
+    const keys = Object.keys(errs) as (keyof typeof errs)[];
+    for (const k of keys) {
+      const m = errs[k]?.message;
+      if (typeof m === "string" && m) return m;
+    }
+    return undefined;
+  }
+
+  async function goStep2() {
+    const valid = await form.trigger();
+    if (!valid) {
+      const detail = firstFormErrorMessage();
+      toast.error("Corrija os dados do fornecedor para continuar.", {
+        description: detail ?? "Verifique nome, CNPJ, representante, telefone e e-mail.",
+      });
+      return;
+    }
+    const n = Object.values(selected).filter(Boolean).length;
+    if (n < 1) {
+      toast.error("Selecione ao menos um equipamento.");
+      return;
+    }
+    if (form.getValues("feira")) {
+      const fn = form.getValues("feiraNome")?.trim();
+      const st = form.getValues("stand")?.trim();
+      if (!fn || !st) {
+        toast.error("Preencha nome da feira e stand.");
         return;
       }
-      if (form.getValues("feira")) {
-        const fn = form.getValues("feiraNome")?.trim();
-        const st = form.getValues("stand")?.trim();
-        if (!fn || !st) {
-          toast.error("Preencha nome da feira e stand.");
-          return;
-        }
-      }
-      setStep(2);
-    });
+    }
+    setStep(2);
   }
 
   function goStep3() {
@@ -297,18 +302,30 @@ export function PortalCotacao({ token }: { token: string }) {
                 <div className="space-y-2">
                   <Label>CNPJ</Label>
                   <Input {...form.register("fornecedorCnpj")} />
+                  {form.formState.errors.fornecedorCnpj ? (
+                    <p className="text-xs text-destructive">{form.formState.errors.fornecedorCnpj.message}</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label>Representante</Label>
                   <Input {...form.register("representanteNome")} />
+                  {form.formState.errors.representanteNome ? (
+                    <p className="text-xs text-destructive">{form.formState.errors.representanteNome.message}</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label>Telefone</Label>
                   <Input {...form.register("telefone")} />
+                  {form.formState.errors.telefone ? (
+                    <p className="text-xs text-destructive">{form.formState.errors.telefone.message}</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label>Email</Label>
                   <Input type="email" {...form.register("email")} />
+                  {form.formState.errors.email ? (
+                    <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2 sm:col-span-2">
                   <Checkbox id="feira" checked={feira} onCheckedChange={(v) => form.setValue("feira", v === true)} />
@@ -337,20 +354,14 @@ export function PortalCotacao({ token }: { token: string }) {
               <CardHeader>
                 <CardTitle className="text-base">Equipamentos</CardTitle>
                 <CardDescription>
-                  Marque o que você fornece. Com pelo menos um item marcado, a lista mostra só os selecionados — use o botão abaixo para ver o catálogo completo.
+                  Marque o que você fornece. Lista completa do convite ({q.data.equipamentos.length} itens). Na próxima
+                  etapa você preenche apenas os selecionados.
                 </CardDescription>
                 {selectedCount > 0 ? (
-                  <div className="flex flex-wrap items-center gap-2 pt-2">
-                    <p className="text-xs text-muted-foreground">
-                      {showFullCatalog ? "Exibindo todos os equipamentos do hospital." : "Exibindo apenas os itens que você marcou."}
-                    </p>
-                    <Button type="button" variant="secondary" size="sm" onClick={() => setShowFullCatalog((v) => !v)}>
-                      {showFullCatalog ? "Mostrar só os que forneço" : "Ver catálogo completo"}
-                    </Button>
-                  </div>
+                  <p className="text-xs font-medium text-primary">{selectedCount} item(ns) selecionado(s)</p>
                 ) : null}
               </CardHeader>
-              <CardContent className="overflow-x-auto">
+              <CardContent className="max-h-[min(70vh,560px)] overflow-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -363,7 +374,7 @@ export function PortalCotacao({ token }: { token: string }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {visibleEquipamentos.map((eq) => (
+                    {q.data.equipamentos.map((eq) => (
                       <TableRow key={eq.id}>
                         <TableCell>
                           <Checkbox checked={!!selected[eq.id]} onCheckedChange={(v) => toggleEquip(eq.id, v === true)} />
