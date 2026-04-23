@@ -1,65 +1,94 @@
-import Image from "next/image";
+import { Suspense } from "react";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+import { EquipmentDashboard } from "@/components/equipment/equipment-dashboard";
+import { EquipmentExportButton } from "@/components/equipment/equipment-export-button";
+import { EquipmentFilters } from "@/components/equipment/equipment-filters";
+import { EquipmentImport } from "@/components/equipment/equipment-import";
+import { EquipmentTable } from "@/components/equipment/equipment-table";
+import type { EquipmentRowDTO } from "@/components/equipment/types";
+import {
+  getDashboardStats,
+  listCategorias,
+  listEquipments,
+  parseListFilters,
+} from "@/lib/equipment-queries";
+import type { EquipmentStatus } from "@/domain/equipment-status";
+import type { Equipment } from "@/generated/prisma/client";
+
+function toRowDTO(e: Equipment): EquipmentRowDTO {
+  return {
+    id: e.id,
+    import_ref: e.import_ref,
+    nome_padronizado: e.nome_padronizado,
+    nome_original: e.nome_original,
+    tipo: e.tipo,
+    categoria: e.categoria,
+    subcategoria: e.subcategoria,
+    setor_hospitalar: e.setor_hospitalar,
+    anvisa_classe: e.anvisa_classe,
+    criticidade: e.criticidade,
+    descricao_original: e.descricao_original,
+    descricao_editavel: e.descricao_editavel,
+    quantidade: e.quantidade,
+    valor_estimado: Number(e.valor_estimado),
+    valor_total_estimado: Number(e.valor_total_estimado),
+    status: e.status as EquipmentStatus,
+    ativo: e.ativo,
+    observacoes: e.observacoes,
+    createdAt: e.createdAt.toISOString(),
+  };
+}
+
+export default async function Home(props: PageProps<"/">) {
+  const searchParams = await props.searchParams;
+  const filters = parseListFilters(searchParams);
+
+  const [stats, categorias, rows] = await Promise.all([
+    getDashboardStats(),
+    listCategorias(),
+    listEquipments(filters),
+  ]);
+
+  const dto = rows.map(toRowDTO);
+  const valorTotal = Number(stats.valorTotalEstimado ?? 0);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10">
+      <header className="space-y-2">
+        <div className="inline-flex items-center rounded-full border bg-background/60 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">
+          Cotações hospitalares
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Gestão de cotação</h1>
+            <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
+              Importe equipamentos, organize por status e gere uma planilha CSV pronta para envio a fornecedores.
+            </p>
+          </div>
+          <Suspense fallback={null}>
+            <EquipmentExportButton />
+          </Suspense>
         </div>
-      </main>
+      </header>
+
+      <EquipmentDashboard
+        valorTotalEstimado={valorTotal}
+        totalItens={stats.totalItens}
+        prontosParaCotacao={stats.prontosParaCotacao}
+      />
+
+      <EquipmentImport />
+
+      <Suspense
+        fallback={
+          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Carregando filtros…</div>
+        }
+      >
+        <EquipmentFilters categorias={categorias} value={filters} />
+      </Suspense>
+
+      <EquipmentTable rows={dto} />
     </div>
   );
 }

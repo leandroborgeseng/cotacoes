@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EquipmentStatus {
+  rascunho
+  pronto_para_cotacao
+  enviado
+  cotado
+}
+
+model Equipment {
+  id                   String          @id @default(cuid())
+  import_ref           String?
+  nome_padronizado     String
+  nome_original        String          @default("")
+  tipo                 String          @default("")
+  categoria            String
+  subcategoria         String          @default("")
+  setor_hospitalar     String          @default("")
+  anvisa_classe        String          @default("")
+  criticidade          String          @default("")
+  descricao_original   String          @default("")
+  descricao_editavel   String          @default("")
+  requisitos_minimos   Json            @default("[]")
+  quantidade           Int             @default(1)
+  valor_estimado       Decimal         @db.Decimal(14, 2)
+  valor_total_estimado Decimal         @db.Decimal(14, 2)
+  status               EquipmentStatus @default(rascunho)
+  ativo                Boolean         @default(true)
+  observacoes          String          @default("")
+  createdAt            DateTime        @default(now())
+
+  @@index([status])
+  @@index([categoria])
+  @@index([ativo])
+}

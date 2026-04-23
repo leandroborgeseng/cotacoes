@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# cotacoes
 
-## Getting Started
+Sistema web para gestão de cotação de equipamentos hospitalares (Next.js, Prisma, PostgreSQL).
 
-First, run the development server:
+Repositório: https://github.com/leandroborgeseng/cotacoes
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Desenvolvimento local
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. Postgres (ex.: `docker compose up -d`)
+2. Copie `.env.example` para `.env` e ajuste `DATABASE_URL`
+3. `npx prisma migrate deploy`
+4. `npm run dev` → http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy na Railway
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Crie um projeto na [Railway](https://railway.app) a partir deste repositório.
+2. Adicione um plugin **PostgreSQL** e copie a variável `DATABASE_URL` para o serviço da aplicação (ou use a referência automática que a Railway injeta).
+3. O arquivo `railway.toml` define o comando de start com migrações antes do servidor.
 
-## Learn More
+Variáveis úteis:
 
-To learn more about Next.js, take a look at the following resources:
+| Variável       | Descrição                          |
+|----------------|-------------------------------------|
+| `DATABASE_URL` | Connection string do Postgres       |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Build padrão: `npm run build`. O `postinstall` executa `prisma generate`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev` — desenvolvimento
+- `npm run build` — build de produção
+- `npm run start` — servidor Next.js (produção)
+- `npm run db:migrate` — migrações em dev (`prisma migrate dev`)
