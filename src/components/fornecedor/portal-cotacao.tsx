@@ -425,10 +425,10 @@ export function PortalCotacao({ token }: { token: string }) {
                       <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
                         <TableHead className="sticky left-0 z-10 w-12 min-w-[3rem] bg-muted/50 px-2">Forneço</TableHead>
                         <TableHead className="sticky left-12 z-10 min-w-[200px] max-w-[280px] bg-muted/50 px-2">Nome</TableHead>
+                        <TableHead className="w-16 text-right bg-muted/50 px-2">Qtd</TableHead>
                         <TableHead className="min-w-[200px] px-2">Descrição</TableHead>
                         <TableHead className="min-w-[120px] px-2">Setor</TableHead>
                         <TableHead className="min-w-[160px] px-2">Requisitos mín.</TableHead>
-                        <TableHead className="w-16 text-right px-2">Qtd</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -443,12 +443,12 @@ export function PortalCotacao({ token }: { token: string }) {
                               <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{eq.nomeOriginal}</span>
                             ) : null}
                           </TableCell>
+                          <TableCell className="bg-card px-2 text-right tabular-nums font-medium">{eq.quantidade}</TableCell>
                           <TableCell className="whitespace-normal px-2 text-sm text-muted-foreground">{eq.descricao}</TableCell>
                           <TableCell className="whitespace-normal px-2 text-sm">{eq.setorHospitalar || "—"}</TableCell>
                           <TableCell className="whitespace-normal px-2 text-xs text-muted-foreground">
                             {requisitosLegivel(eq.requisitosMinimos)}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums px-2">{eq.quantidade}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

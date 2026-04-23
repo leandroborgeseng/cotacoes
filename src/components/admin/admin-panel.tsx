@@ -347,8 +347,8 @@ export function AdminPanel() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
+                  <TableHead className="w-20 text-right">Qtd</TableHead>
                   <TableHead>Setor</TableHead>
-                  <TableHead>Qtd</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -361,8 +361,8 @@ export function AdminPanel() {
                         <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{eq.nomeOriginal}</span>
                       ) : null}
                     </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">{eq.quantidade}</TableCell>
                     <TableCell className="max-w-[140px] text-sm text-muted-foreground">{eq.setorHospitalar || "—"}</TableCell>
-                    <TableCell>{eq.quantidade}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button
                         size="sm"
