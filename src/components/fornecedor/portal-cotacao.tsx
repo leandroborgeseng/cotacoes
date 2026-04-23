@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { INSTITUICAO_PROPOSTA } from "@/lib/instituicao-publica";
 import { MAX_PDF_BYTES } from "@/lib/pdf-constants";
 import { cn } from "@/lib/utils";
@@ -289,7 +288,7 @@ export function PortalCotacao({ token }: { token: string }) {
   const { convite } = q.data;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 pb-28 sm:py-10">
+    <div className="w-full max-w-[100vw] space-y-6 px-3 py-8 pb-28 sm:px-5 sm:py-10 lg:px-8">
       <PortalStepIndicator step={step} />
 
       <header className="overflow-hidden rounded-3xl border border-border/60 bg-card/95 px-5 py-6 shadow-md shadow-primary/5 sm:px-8 sm:py-8">
@@ -407,33 +406,37 @@ export function PortalCotacao({ token }: { token: string }) {
                   <p className="text-xs font-medium text-primary">{selectedCount} item(ns) selecionado(s)</p>
                 ) : null}
               </CardHeader>
-              <CardContent className="max-h-[min(70vh,560px)] overflow-auto rounded-b-3xl">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-border/60 bg-muted/40 hover:bg-muted/40">
-                      <TableHead className="w-12">Forneço</TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead className="text-right">Qtd</TableHead>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead>Criticidade</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {q.data.equipamentos.map((eq) => (
-                      <TableRow key={eq.id}>
-                        <TableCell>
-                          <Checkbox checked={!!selected[eq.id]} onCheckedChange={(v) => toggleEquip(eq.id, v === true)} />
-                        </TableCell>
-                        <TableCell className="font-medium">{eq.nome}</TableCell>
-                        <TableCell className="max-w-[200px] text-sm text-muted-foreground">{eq.descricao}</TableCell>
-                        <TableCell className="text-right">{eq.quantidade}</TableCell>
-                        <TableCell className="text-sm">{eq.categoria || "—"}</TableCell>
-                        <TableCell className="text-sm">{eq.criticidade || "—"}</TableCell>
+              <CardContent className="rounded-b-3xl p-0">
+                <div className="max-h-[min(75vh,720px)] overflow-auto">
+                  <Table className="min-w-[920px]">
+                    <TableHeader>
+                      <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
+                        <TableHead className="sticky left-0 z-10 w-12 min-w-[3rem] bg-muted/50 px-2">Forneço</TableHead>
+                        <TableHead className="sticky left-12 z-10 min-w-[200px] max-w-[280px] bg-muted/50 px-2">Nome</TableHead>
+                        <TableHead className="min-w-[220px] px-2">Descrição</TableHead>
+                        <TableHead className="w-16 text-right px-2">Qtd</TableHead>
+                        <TableHead className="min-w-[120px] px-2">Categoria</TableHead>
+                        <TableHead className="min-w-[100px] px-2">Criticidade</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {q.data.equipamentos.map((eq) => (
+                        <TableRow key={eq.id} className="border-border/40">
+                          <TableCell className="sticky left-0 z-[1] bg-card px-2">
+                            <Checkbox checked={!!selected[eq.id]} onCheckedChange={(v) => toggleEquip(eq.id, v === true)} />
+                          </TableCell>
+                          <TableCell className="sticky left-12 z-[1] max-w-[280px] bg-card px-2 font-medium whitespace-normal">
+                            {eq.nome}
+                          </TableCell>
+                          <TableCell className="whitespace-normal px-2 text-sm text-muted-foreground">{eq.descricao}</TableCell>
+                          <TableCell className="text-right tabular-nums px-2">{eq.quantidade}</TableCell>
+                          <TableCell className="whitespace-normal px-2 text-sm">{eq.categoria || "—"}</TableCell>
+                          <TableCell className="whitespace-normal px-2 text-sm">{eq.criticidade || "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
 
@@ -447,81 +450,127 @@ export function PortalCotacao({ token }: { token: string }) {
 
         {step === 2 ? (
           <motion.div key="s2" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-4">
-            <Card className="rounded-3xl border-border/60 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">Valores da sua proposta</CardTitle>
-                <CardDescription>Um bloco por item selecionado. Use ponto ou vírgula no preço.</CardDescription>
+            <Card className="overflow-hidden rounded-3xl border-border/60 shadow-sm">
+              <CardHeader className="border-b border-border/50 bg-muted/20">
+                <CardTitle className="text-lg">Planilha de valores</CardTitle>
+                <CardDescription>
+                  Preencha linha a linha, como no Excel. Preço em reais (vírgula ou ponto). Role horizontalmente se
+                  precisar.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {selectedList.map((eq) => {
-                  const d = itemsDraft[eq.id] ?? emptyItem();
-                  return (
-                    <div key={eq.id} className="rounded-2xl border border-border/50 bg-muted/25 p-4 sm:p-5">
-                      <div className="mb-3 text-base font-semibold text-foreground">{eq.nome}</div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Preço unitário (R$)</Label>
-                          <Input
-                            inputMode="decimal"
-                            value={d.precoUnitario}
-                            onChange={(e) =>
-                              setItemsDraft((x) => ({ ...x, [eq.id]: { ...d, precoUnitario: e.target.value } }))
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Prazo (dias)</Label>
-                          <Input
-                            inputMode="numeric"
-                            value={d.prazoEntrega}
-                            onChange={(e) =>
-                              setItemsDraft((x) => ({ ...x, [eq.id]: { ...d, prazoEntrega: e.target.value } }))
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2 sm:col-span-2">
-                          <Label>Condições de pagamento</Label>
-                          <Select
-                            value={d.condicoesPagamento}
-                            onValueChange={(v) =>
-                              setItemsDraft((x) => ({
-                                ...x,
-                                [eq.id]: { ...d, condicoesPagamento: v as ItemDraft["condicoesPagamento"] },
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="A_VISTA">À vista</SelectItem>
-                              <SelectItem value="FATURADO_30_60_90">30/60/90 (faturado)</SelectItem>
-                              <SelectItem value="OUTRO">Outro (detalhar)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2 sm:col-span-2">
-                          <Label>Detalhe / livre (ex.: 30/60/90, faturado)</Label>
-                          <Input
-                            value={d.condicoesPagamentoDetalhe}
-                            onChange={(e) =>
-                              setItemsDraft((x) => ({ ...x, [eq.id]: { ...d, condicoesPagamentoDetalhe: e.target.value } }))
-                            }
-                            placeholder="Opcional se já escolheu no menu"
-                          />
-                        </div>
-                        <div className="space-y-2 sm:col-span-2">
-                          <Label>Observações do item</Label>
-                          <Textarea
-                            rows={2}
-                            value={d.observacoes}
-                            onChange={(e) => setItemsDraft((x) => ({ ...x, [eq.id]: { ...d, observacoes: e.target.value } }))}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <CardContent className="p-0">
+                <div className="max-h-[min(78vh,800px)] overflow-auto">
+                  <table className="w-full min-w-[1100px] border-collapse text-sm">
+                    <thead className="sticky top-0 z-20 border-b border-border bg-muted/90 shadow-sm backdrop-blur-sm">
+                      <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <th className="sticky left-0 z-30 w-10 border border-border/80 bg-muted/95 px-2 py-2.5">#</th>
+                        <th className="sticky left-10 z-30 min-w-[200px] max-w-[320px] border border-border/80 bg-muted/95 px-2 py-2.5">
+                          Equipamento
+                        </th>
+                        <th className="min-w-[72px] border border-border/80 bg-muted/95 px-2 py-2.5 text-right">Qtd</th>
+                        <th className="min-w-[110px] border border-border/80 bg-muted/95 px-2 py-2.5">Preço unit. (R$)</th>
+                        <th className="min-w-[72px] border border-border/80 bg-muted/95 px-2 py-2.5">Prazo (dias)</th>
+                        <th className="min-w-[150px] border border-border/80 bg-muted/95 px-2 py-2.5">Pagamento</th>
+                        <th className="min-w-[160px] border border-border/80 bg-muted/95 px-2 py-2.5">Detalhe pagamento</th>
+                        <th className="min-w-[200px] border border-border/80 bg-muted/95 px-2 py-2.5">Observações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedList.map((eq, idx) => {
+                        const d = itemsDraft[eq.id] ?? emptyItem();
+                        const rowBg = idx % 2 === 1 ? "bg-muted/25" : "bg-card";
+                        return (
+                          <tr key={eq.id} className={cn("hover:bg-primary/[0.04]", rowBg)}>
+                            <td
+                              className={cn(
+                                "sticky left-0 z-[5] border border-border/60 px-2 py-1.5 text-center tabular-nums text-muted-foreground",
+                                rowBg,
+                              )}
+                            >
+                              {idx + 1}
+                            </td>
+                            <td
+                              className={cn(
+                                "sticky left-10 z-[5] max-w-[320px] border border-border/60 px-2 py-1.5 font-medium whitespace-normal leading-snug",
+                                rowBg,
+                              )}
+                            >
+                              {eq.nome}
+                            </td>
+                            <td
+                              className={cn(
+                                "border border-border/60 px-2 py-1.5 text-right tabular-nums text-muted-foreground",
+                                rowBg,
+                              )}
+                            >
+                              {eq.quantidade}
+                            </td>
+                            <td className={cn("border border-border/60 p-0", rowBg)}>
+                              <Input
+                                inputMode="decimal"
+                                placeholder="0,00"
+                                className="h-10 min-w-[6.5rem] rounded-none border-0 bg-transparent px-2 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                                value={d.precoUnitario}
+                                onChange={(e) =>
+                                  setItemsDraft((x) => ({ ...x, [eq.id]: { ...d, precoUnitario: e.target.value } }))
+                                }
+                              />
+                            </td>
+                            <td className={cn("border border-border/60 p-0", rowBg)}>
+                              <Input
+                                inputMode="numeric"
+                                placeholder="0"
+                                className="h-10 w-full min-w-[3.5rem] rounded-none border-0 bg-transparent px-2 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                                value={d.prazoEntrega}
+                                onChange={(e) =>
+                                  setItemsDraft((x) => ({ ...x, [eq.id]: { ...d, prazoEntrega: e.target.value } }))
+                                }
+                              />
+                            </td>
+                            <td className={cn("border border-border/60 p-0", rowBg)}>
+                              <Select
+                                value={d.condicoesPagamento}
+                                onValueChange={(v) =>
+                                  setItemsDraft((x) => ({
+                                    ...x,
+                                    [eq.id]: { ...d, condicoesPagamento: v as ItemDraft["condicoesPagamento"] },
+                                  }))
+                                }
+                              >
+                                <SelectTrigger className="h-10 w-full min-w-[8rem] rounded-none border-0 bg-transparent px-2 text-xs shadow-none focus:ring-2 focus:ring-inset focus:ring-primary">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="A_VISTA">À vista</SelectItem>
+                                  <SelectItem value="FATURADO_30_60_90">30/60/90</SelectItem>
+                                  <SelectItem value="OUTRO">Outro</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className={cn("border border-border/60 p-0", rowBg)}>
+                              <Input
+                                className="h-10 min-w-[8rem] rounded-none border-0 bg-transparent px-2 text-xs shadow-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                                placeholder="—"
+                                value={d.condicoesPagamentoDetalhe}
+                                onChange={(e) =>
+                                  setItemsDraft((x) => ({ ...x, [eq.id]: { ...d, condicoesPagamentoDetalhe: e.target.value } }))
+                                }
+                              />
+                            </td>
+                            <td className={cn("border border-border/60 p-0", rowBg)}>
+                              <Input
+                                className="h-10 min-w-[10rem] rounded-none border-0 bg-transparent px-2 text-xs shadow-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                                placeholder="Opcional"
+                                value={d.observacoes}
+                                onChange={(e) => setItemsDraft((x) => ({ ...x, [eq.id]: { ...d, observacoes: e.target.value } }))}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">

@@ -14,7 +14,7 @@ export function SiteTopNav() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/40 bg-background/90 shadow-[0_1px_0_rgba(0,0,0,0.04)] backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:py-3">
+      <div className="mx-auto flex w-full max-w-[min(100%,1800px)] items-center justify-between gap-3 px-3 py-2.5 sm:px-6 sm:py-3 lg:px-8">
         <Link href="/" className="group flex min-w-0 items-center gap-2.5 sm:gap-3">
           <Image
             src={INSTITUICAO_PROPOSTA.logoSrc}
