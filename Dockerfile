@@ -17,10 +17,11 @@ RUN npx prisma generate
 ENV DATABASE_URL=file:./prisma/build.db
 RUN npx prisma migrate deploy && npm run build
 
-# Runtime: SQLite em disco gravável dentro da imagem (Railway não monta /data por padrão)
+# Runtime: SQLite em ./data — em produção monte um volume persistente em /app/data para não perder o banco a cada deploy.
 ENV NODE_ENV=production
 ENV DATABASE_URL=file:./data/cotacoes.db
 
 # Railway injeta PORT; localmente 3000
+# Não rodamos `db seed` no boot: evita sobrescrever dados. Primeira carga: `npx prisma db seed` manual ou painel admin.
 EXPOSE 3000
-CMD ["sh", "-c", "mkdir -p data && npx prisma migrate deploy && npx prisma db seed && exec npx next start -H 0.0.0.0 -p ${PORT:-3000}"]
+CMD ["sh", "-c", "mkdir -p data && npx prisma migrate deploy && exec npx next start -H 0.0.0.0 -p ${PORT:-3000}"]

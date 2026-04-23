@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_PDF_BYTES } from "@/lib/pdf-constants";
@@ -48,9 +49,37 @@ type CotacaoRow = {
     condicoesPagamento: string;
     condicoesPagamentoDetalhe: string;
     observacoes: string;
-    equipamento: { nome: string; precoUnitarioOrcado?: unknown };
+    equipamento: { id: string; nome: string; precoUnitarioOrcado?: unknown };
   }>;
 };
+
+const PAGAMENTO_OPCOES = [
+  { value: "A_VISTA", label: "À vista" },
+  { value: "FATURADO_30_60_90", label: "Faturado 30/60/90" },
+  { value: "OUTRO", label: "Outro" },
+] as const;
+
+function rotuloCotacao(c: CotacaoRow) {
+  const d = new Date(c.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  return `${c.fornecedorNome} — ${d}`;
+}
+
+function linhasComparacao(a: CotacaoRow, b: CotacaoRow) {
+  const ma = new Map(a.itens.map((i) => [i.equipamento.id, i]));
+  const mb = new Map(b.itens.map((i) => [i.equipamento.id, i]));
+  const ids = [...new Set([...ma.keys(), ...mb.keys()])];
+  return ids.map((eqId) => {
+    const ia = ma.get(eqId);
+    const ib = mb.get(eqId);
+    const nome = ia?.equipamento.nome ?? ib?.equipamento.nome ?? "—";
+    return { eqId, nome, ia, ib };
+  });
+}
+
+function truncLabel(s: string, max = 32) {
+  const t = s.trim();
+  return t.length <= max ? t : `${t.slice(0, max)}…`;
+}
 
 const money = (v: unknown) => {
   const n = typeof v === "string" ? Number(v) : Number(v);
@@ -87,6 +116,19 @@ export function AdminPanel() {
   const qc = useQueryClient();
   const [hospitalId, setHospitalId] = useState<string>("");
   const [cnpjFilter, setCnpjFilter] = useState("");
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareA, setCompareA] = useState("");
+  const [compareB, setCompareB] = useState("");
+  const [itemEdit, setItemEdit] = useState<null | {
+    itemId: string;
+    fornecedorNome: string;
+    equipNome: string;
+    precoUnitario: string;
+    prazoEntrega: string;
+    condicoesPagamento: string;
+    condicoesPagamentoDetalhe: string;
+    observacoes: string;
+  }>(null);
   const [openEq, setOpenEq] = useState(false);
   const [editing, setEditing] = useState<Equipamento | null>(null);
 
@@ -215,6 +257,46 @@ export function AdminPanel() {
         ativo ? "Item voltou à lista da pré-cotação." : "Marcado como já adquirido — não aparece mais no convite para fornecedores.",
       );
       void qc.invalidateQueries({ queryKey: ["admin", "equipamentos", hid] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteCotacao = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/cotacoes/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Falha ao excluir cotação.");
+    },
+    onSuccess: () => {
+      toast.success("Cotação excluída.");
+      void qc.invalidateQueries({ queryKey: ["admin", "cotacoes", cnpjFilter] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const patchCotacaoItem = useMutation({
+    mutationFn: async () => {
+      if (!itemEdit) return;
+      const preco = Number(itemEdit.precoUnitario.replace(",", "."));
+      const prazo = Number(itemEdit.prazoEntrega);
+      if (!Number.isFinite(preco) || preco <= 0) throw new Error("Preço unitário inválido.");
+      if (!Number.isFinite(prazo) || prazo < 1) throw new Error("Prazo inválido.");
+      const res = await fetch(`/api/admin/cotacao-itens/${itemEdit.itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          precoUnitario: preco,
+          prazoEntrega: prazo,
+          condicoesPagamento: itemEdit.condicoesPagamento,
+          condicoesPagamentoDetalhe: itemEdit.condicoesPagamentoDetalhe,
+          observacoes: itemEdit.observacoes,
+        }),
+      });
+      if (!res.ok) throw new Error("Falha ao salvar linha.");
+    },
+    onSuccess: () => {
+      toast.success("Valores da cotação atualizados.");
+      setItemEdit(null);
+      void qc.invalidateQueries({ queryKey: ["admin", "cotacoes", cnpjFilter] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -525,8 +607,9 @@ export function AdminPanel() {
         <CardHeader>
           <CardTitle className="text-lg">Cotações recebidas</CardTitle>
           <CardDescription>
-            Filtre por CNPJ parcial do fornecedor. A coluna “Vs orçado” usa o valor unitário orçado cadastrado em cada
-            equipamento. PDFs de até {(MAX_PDF_BYTES / (1024 * 1024)).toFixed(0)} MB.
+            Dados persistem entre deploys. Filtre por CNPJ, edite valores cotados, compare duas propostas ou exclua uma
+            cotação inteira. “Vs orçado” usa o valor unitário orçado no cadastro do equipamento. PDFs de até{" "}
+            {(MAX_PDF_BYTES / (1024 * 1024)).toFixed(0)} MB.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -536,6 +619,53 @@ export function AdminPanel() {
               Filtrar
             </Button>
           </div>
+
+          {(cotacoes.data?.length ?? 0) >= 2 ? (
+            <div className="rounded-xl border border-primary/15 bg-primary/[0.04] p-4">
+              <p className="mb-3 text-sm font-medium text-foreground">Comparar duas cotações (preço unitário)</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+                <div className="min-w-[min(100%,220px)] flex-1 space-y-1.5">
+                  <Label className="text-xs">Primeira cotação</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={compareA}
+                    onChange={(e) => setCompareA(e.target.value)}
+                  >
+                    <option value="">Selecione…</option>
+                    {cotacoes.data?.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {rotuloCotacao(c)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-[min(100%,220px)] flex-1 space-y-1.5">
+                  <Label className="text-xs">Segunda cotação</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={compareB}
+                    onChange={(e) => setCompareB(e.target.value)}
+                  >
+                    <option value="">Selecione…</option>
+                    {cotacoes.data?.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {rotuloCotacao(c)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!compareA || !compareB || compareA === compareB}
+                  onClick={() => setCompareOpen(true)}
+                >
+                  Abrir comparação
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="space-y-6">
             {cotacoes.data?.map((c) => (
               <div key={c.id} className="rounded-xl border bg-muted/10 p-4">
@@ -549,13 +679,32 @@ export function AdminPanel() {
                       {new Date(c.createdAt).toLocaleString("pt-BR")} · {c.convite.hospital.nome}
                     </p>
                   </div>
-                  <a
-                    href={`/api/admin/cotacoes/${c.id}/pdf`}
-                    download
-                    className={cn(buttonVariants({ size: "sm", variant: "outline" }), "inline-flex")}
-                  >
-                    Baixar PDF
-                  </a>
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href={`/api/admin/cotacoes/${c.id}/pdf`}
+                      download
+                      className={cn(buttonVariants({ size: "sm", variant: "outline" }), "inline-flex")}
+                    >
+                      Baixar PDF
+                    </a>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      disabled={deleteCotacao.isPending}
+                      onClick={() => {
+                        if (
+                          confirm(
+                            "Excluir esta cotação permanentemente? O PDF será removido e não poderá ser desfeito.",
+                          )
+                        ) {
+                          deleteCotacao.mutate(c.id);
+                        }
+                      }}
+                    >
+                      Excluir cotação
+                    </Button>
+                  </div>
                 </div>
                 <Table className="mt-4">
                   <TableHeader>
@@ -567,6 +716,7 @@ export function AdminPanel() {
                       <TableHead>Prazo</TableHead>
                       <TableHead>Pagamento</TableHead>
                       <TableHead>Obs.</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -582,6 +732,27 @@ export function AdminPanel() {
                           {it.condicoesPagamentoDetalhe ? ` — ${it.condicoesPagamentoDetalhe}` : ""}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{it.observacoes || "—"}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              setItemEdit({
+                                itemId: it.id,
+                                fornecedorNome: c.fornecedorNome,
+                                equipNome: it.equipamento.nome,
+                                precoUnitario: String(Number(it.precoUnitario)),
+                                prazoEntrega: String(it.prazoEntrega),
+                                condicoesPagamento: it.condicoesPagamento,
+                                condicoesPagamentoDetalhe: it.condicoesPagamentoDetalhe ?? "",
+                                observacoes: it.observacoes ?? "",
+                              })
+                            }
+                          >
+                            Editar linha
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -592,6 +763,138 @@ export function AdminPanel() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={compareOpen} onOpenChange={setCompareOpen}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Comparação lado a lado</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const ca = cotacoes.data?.find((x) => x.id === compareA);
+            const cb = cotacoes.data?.find((x) => x.id === compareB);
+            if (!ca || !cb) {
+              return <p className="text-sm text-muted-foreground">Selecione duas cotações válidas.</p>;
+            }
+            const rows = linhasComparacao(ca, cb);
+            return (
+              <div className="space-y-3 py-2">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{ca.fornecedorNome}</span> ×{" "}
+                  <span className="font-medium text-foreground">{cb.fornecedorNome}</span>
+                </p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Equipamento</TableHead>
+                        <TableHead className="max-w-[140px] text-right text-xs font-normal">
+                          {truncLabel(ca.fornecedorNome)}
+                        </TableHead>
+                        <TableHead className="max-w-[140px] text-right text-xs font-normal">
+                          {truncLabel(cb.fornecedorNome)}
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((r) => (
+                        <TableRow key={r.eqId}>
+                          <TableCell className="font-medium">{r.nome}</TableCell>
+                          <TableCell className="text-right tabular-nums text-sm">
+                            {r.ia ? money(r.ia.precoUnitario) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-sm">
+                            {r.ib ? money(r.ib.precoUnitario) : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCompareOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!itemEdit} onOpenChange={(o) => !o && setItemEdit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar linha da cotação</DialogTitle>
+          </DialogHeader>
+          {itemEdit ? (
+            <div className="grid gap-3 py-2">
+              <p className="text-sm text-muted-foreground">
+                {itemEdit.fornecedorNome} · <span className="font-medium text-foreground">{itemEdit.equipNome}</span>
+              </p>
+              <div className="space-y-2">
+                <Label>Preço unitário cotado (R$)</Label>
+                <Input
+                  inputMode="decimal"
+                  value={itemEdit.precoUnitario}
+                  onChange={(e) => setItemEdit((s) => (s ? { ...s, precoUnitario: e.target.value } : s))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Prazo de entrega (dias)</Label>
+                <Input
+                  inputMode="numeric"
+                  className="max-w-[140px]"
+                  value={itemEdit.prazoEntrega}
+                  onChange={(e) => setItemEdit((s) => (s ? { ...s, prazoEntrega: e.target.value } : s))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Condição de pagamento</Label>
+                <Select
+                  value={itemEdit.condicoesPagamento}
+                  onValueChange={(v) =>
+                    setItemEdit((s) => (s ? { ...s, condicoesPagamento: v || s.condicoesPagamento } : s))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGAMENTO_OPCOES.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Detalhe do pagamento</Label>
+                <Input
+                  value={itemEdit.condicoesPagamentoDetalhe}
+                  onChange={(e) => setItemEdit((s) => (s ? { ...s, condicoesPagamentoDetalhe: e.target.value } : s))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Observações</Label>
+                <Textarea
+                  rows={3}
+                  value={itemEdit.observacoes}
+                  onChange={(e) => setItemEdit((s) => (s ? { ...s, observacoes: e.target.value } : s))}
+                />
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setItemEdit(null)}>
+              Cancelar
+            </Button>
+            <Button type="button" disabled={patchCotacaoItem.isPending || !itemEdit} onClick={() => patchCotacaoItem.mutate()}>
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

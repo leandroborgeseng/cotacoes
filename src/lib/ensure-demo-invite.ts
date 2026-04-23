@@ -48,20 +48,8 @@ export async function ensureDemoInvite(): Promise<void> {
   }
 
   const qtd = await prisma.equipamento.count({ where: { hospitalId: hospital.id } });
-  const comRefCatalogo = await prisma.equipamento.count({
-    where: { hospitalId: hospital.id, importRef: { startsWith: "eq_" } },
-  });
 
-  /** Migração suave: banco antigo com os 3 itens demo sem `importRef` → substitui pelo catálogo oficial. */
-  const legadoTresSemCatalogo =
-    hospital.cnpj === HOSPITAL.cnpj && qtd === 3 && comRefCatalogo === 0;
-
-  if (legadoTresSemCatalogo) {
-    await prisma.equipamento.deleteMany({ where: { hospitalId: hospital.id } });
-    await prisma.equipamento.createMany({ data: dadosCatalogoCreateMany(hospital.id) });
-    return;
-  }
-
+  /** Só preenche catálogo vazio (primeiro uso). Nunca apaga nem substitui equipamentos existentes. */
   if (qtd === 0) {
     const data =
       hospital.cnpj === HOSPITAL.cnpj

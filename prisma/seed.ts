@@ -1,3 +1,7 @@
+/**
+ * Execução manual: `npx prisma db seed`
+ * Não roda no start do container (ver Dockerfile) para não sobrescrever dados em produção.
+ */
 import { ensureDemoInvite, resetAndSeedFull } from "../src/lib/ensure-demo-invite";
 import { prisma } from "../src/lib/prisma";
 
