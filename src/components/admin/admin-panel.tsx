@@ -214,24 +214,37 @@ export function AdminPanel() {
   }
 
   if (hospitals.isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Carregando…</div>;
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-20">
+        <div className="size-12 animate-pulse rounded-2xl bg-primary/15" />
+        <p className="text-sm text-muted-foreground">Carregando painel…</p>
+      </div>
+    );
   }
   if (!hospitals.data?.length) {
-    return <div className="p-8 text-center">Nenhum hospital cadastrado. Rode o seed ou crie via Prisma Studio.</div>;
+    return (
+      <div className="mx-auto max-w-lg px-4 py-16 text-center">
+        <p className="font-medium text-foreground">Nenhum hospital no banco ainda.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Recarregue a página — o sistema tenta criar o hospital de demonstração automaticamente. Se persistir, rode{" "}
+          <code className="rounded bg-muted px-1">npx prisma migrate deploy</code> no servidor.
+        </p>
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-4 py-10">
-      <header className="flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto max-w-6xl flex-1 space-y-8 px-4 py-8 sm:py-10">
+      <header className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-card/80 px-5 py-6 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Painel interno</h1>
-          <p className="text-sm text-muted-foreground">Equipamentos, convites e cotações recebidas.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Painel do hospital</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Convites, catálogo de equipamentos e cotações recebidas.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/" className={cn(buttonVariants({ variant: "outline" }), "inline-flex")}>
-            Site público
+          <Link href="/" className={cn(buttonVariants({ variant: "outline" }), "inline-flex rounded-full")}>
+            Ver site público
           </Link>
-          <Button variant="secondary" onClick={() => void logout()}>
+          <Button variant="secondary" className="rounded-full" onClick={() => void logout()}>
             Sair
           </Button>
         </div>
@@ -259,11 +272,11 @@ export function AdminPanel() {
         </div>
       </div>
 
-      <Card>
+      <Card className="rounded-3xl border-border/60 shadow-sm">
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="text-base">Equipamentos</CardTitle>
-            <CardDescription>CRUD do catálogo deste hospital.</CardDescription>
+            <CardTitle className="text-lg">Equipamentos</CardTitle>
+            <CardDescription>Catálogo deste hospital — o que os fornecedores veem no convite.</CardDescription>
           </div>
           <Dialog
             open={openEq}
@@ -389,10 +402,12 @@ export function AdminPanel() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-3xl border-border/60 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">Cotações recebidas</CardTitle>
-          <CardDescription>Filtre por CNPJ parcial do fornecedor. PDF até {(MAX_PDF_BYTES / (1024 * 1024)).toFixed(0)}MB.</CardDescription>
+          <CardTitle className="text-lg">Cotações recebidas</CardTitle>
+          <CardDescription>
+            Filtre por CNPJ parcial do fornecedor. PDFs de até {(MAX_PDF_BYTES / (1024 * 1024)).toFixed(0)} MB.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex max-w-md gap-2">

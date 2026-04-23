@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
@@ -19,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { INSTITUICAO_PROPOSTA } from "@/lib/instituicao-publica";
 import { MAX_PDF_BYTES } from "@/lib/pdf-constants";
+import { cn } from "@/lib/utils";
 
 type ConviteApi = {
   convite: { id: string; token: string; titulo: string; textoIntro: string };
@@ -62,6 +62,45 @@ const emptyItem = (): ItemDraft => ({
   condicoesPagamentoDetalhe: "",
   observacoes: "",
 });
+
+function PortalStepIndicator({ step }: { step: 1 | 2 | 3 }) {
+  const items = [
+    { n: 1 as const, label: "Dados e itens" },
+    { n: 2 as const, label: "Valores" },
+    { n: 3 as const, label: "PDF e envio" },
+  ];
+  return (
+    <div className="mb-8 flex flex-wrap items-center justify-center gap-y-2 sm:gap-x-1">
+      {items.map((it, i) => (
+        <div key={it.n} className="flex items-center">
+          {i > 0 ? (
+            <span className="mx-1 hidden text-muted-foreground/50 sm:mx-2 sm:inline" aria-hidden>
+              ·
+            </span>
+          ) : null}
+          <span
+            className={cn(
+              "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium sm:text-sm",
+              step === it.n
+                ? "border-primary bg-primary text-primary-foreground shadow-md"
+                : "border-border/80 bg-card/90 text-muted-foreground",
+            )}
+          >
+            <span
+              className={cn(
+                "flex size-5 items-center justify-center rounded-full text-[10px] tabular-nums sm:size-6 sm:text-xs",
+                step === it.n ? "bg-primary-foreground/20" : "bg-muted",
+              )}
+            >
+              {it.n}
+            </span>
+            {it.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function PortalCotacao({ token }: { token: string }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -220,7 +259,15 @@ export function PortalCotacao({ token }: { token: string }) {
   }
 
   if (q.isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Carregando convite…</div>;
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center gap-5 px-4 py-24">
+        <div className="size-14 animate-pulse rounded-2xl bg-primary/15" />
+        <div className="space-y-2 text-center">
+          <p className="text-sm font-medium text-foreground">Preparando seu convite…</p>
+          <p className="text-xs text-muted-foreground">Só um instante.</p>
+        </div>
+      </div>
+    );
   }
   if (q.isError || !q.data) {
     return (
@@ -242,25 +289,20 @@ export function PortalCotacao({ token }: { token: string }) {
   const { convite } = q.data;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 pb-24">
-      <header className="overflow-hidden rounded-2xl border border-border/80 bg-card/80 px-4 py-6 shadow-sm backdrop-blur-sm sm:px-8">
-        <div className="relative mx-auto mb-5 flex max-w-2xl justify-center">
-          <Image
-            src={INSTITUICAO_PROPOSTA.logoSrc}
-            alt={INSTITUICAO_PROPOSTA.logoAlt}
-            width={720}
-            height={200}
-            className="h-auto max-h-[100px] w-full max-w-lg object-contain object-center md:max-h-[120px]"
-            priority
-          />
-        </div>
-        <p className="text-center text-xs font-medium uppercase tracking-wider text-primary">Pré-Cotação Hospitalar</p>
-        <p className="mt-1 text-center text-sm text-muted-foreground">{convite.titulo}</p>
-        <div className="mx-auto mt-5 max-w-xl rounded-xl border border-primary/15 bg-primary/[0.04] px-4 py-4 text-left text-sm">
-          <p className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-primary/90">
-            Destinatário da proposta — envie sua documentação para
-          </p>
-          <dl className="space-y-2.5 text-foreground/90">
+    <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 pb-28 sm:py-10">
+      <PortalStepIndicator step={step} />
+
+      <header className="overflow-hidden rounded-3xl border border-border/60 bg-card/95 px-5 py-6 shadow-md shadow-primary/5 sm:px-8 sm:py-8">
+        <p className="text-center text-xs font-semibold uppercase tracking-widest text-primary">Pré-cotação hospitalar</p>
+        <h1 className="mt-2 text-balance text-center text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+          {convite.titulo}
+        </h1>
+        <p className="mx-auto mt-2 max-w-2xl text-center text-sm text-muted-foreground">
+          Confira abaixo para quem endereçar sua proposta e leia o texto do processo com calma.
+        </p>
+        <div className="mx-auto mt-6 max-w-xl rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.06] to-transparent px-4 py-5 text-left text-sm sm:px-5">
+          <p className="mb-3 text-center text-xs font-semibold text-primary">Destinatário da sua proposta</p>
+          <dl className="space-y-3 text-foreground/95">
             <div>
               <dt className="text-xs font-medium text-muted-foreground">Razão social</dt>
               <dd className="font-medium leading-snug">{INSTITUICAO_PROPOSTA.razaoSocial}</dd>
@@ -277,19 +319,22 @@ export function PortalCotacao({ token }: { token: string }) {
         </div>
       </header>
 
-      <Card className="border-border/70 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Sobre o processo</CardTitle>
-          <CardDescription className="text-pretty leading-relaxed">{convite.textoIntro}</CardDescription>
+      <Card className="rounded-3xl border-border/60 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Sobre este processo</CardTitle>
+          <CardDescription className="text-pretty text-base leading-relaxed text-muted-foreground">
+            {convite.textoIntro}
+          </CardDescription>
         </CardHeader>
       </Card>
 
       <AnimatePresence mode="wait">
         {step === 1 ? (
           <motion.div key="s1" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-            <Card>
+            <Card className="rounded-3xl border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Dados do fornecedor</CardTitle>
+                <CardTitle className="text-lg">Seus dados</CardTitle>
+                <CardDescription>Quem está respondendo neste convite — usamos para contato em caso de dúvida.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2 sm:col-span-2">
@@ -350,21 +395,22 @@ export function PortalCotacao({ token }: { token: string }) {
               </CardContent>
             </Card>
 
-            <Card className="mt-6">
+            <Card className="mt-6 rounded-3xl border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Equipamentos</CardTitle>
+                <CardTitle className="text-lg">Equipamentos do convite</CardTitle>
                 <CardDescription>
-                  Marque o que você fornece. Lista completa do convite ({q.data.equipamentos.length} itens). Na próxima
-                  etapa você preenche apenas os selecionados.
+                  Marque o que você realmente fornece. Esta lista tem{" "}
+                  <span className="font-semibold text-foreground/80">{q.data.equipamentos.length}</span> itens. Na próxima
+                  etapa você informa preço e prazo só dos selecionados.
                 </CardDescription>
                 {selectedCount > 0 ? (
                   <p className="text-xs font-medium text-primary">{selectedCount} item(ns) selecionado(s)</p>
                 ) : null}
               </CardHeader>
-              <CardContent className="max-h-[min(70vh,560px)] overflow-auto">
+              <CardContent className="max-h-[min(70vh,560px)] overflow-auto rounded-b-3xl">
                 <Table>
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="border-border/60 bg-muted/40 hover:bg-muted/40">
                       <TableHead className="w-12">Forneço</TableHead>
                       <TableHead>Nome</TableHead>
                       <TableHead>Descrição</TableHead>
@@ -391,8 +437,8 @@ export function PortalCotacao({ token }: { token: string }) {
               </CardContent>
             </Card>
 
-            <div className="mt-8 flex justify-end">
-              <Button type="button" size="lg" className="min-w-[200px]" onClick={goStep2}>
+            <div className="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-end">
+              <Button type="button" size="lg" className="h-12 min-w-[220px] rounded-full text-base shadow-md" onClick={goStep2}>
                 Continuar para proposta
               </Button>
             </div>
@@ -401,17 +447,17 @@ export function PortalCotacao({ token }: { token: string }) {
 
         {step === 2 ? (
           <motion.div key="s2" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-4">
-            <Card>
+            <Card className="rounded-3xl border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Valores por item</CardTitle>
-                <CardDescription>Preencha todos os itens selecionados.</CardDescription>
+                <CardTitle className="text-lg">Valores da sua proposta</CardTitle>
+                <CardDescription>Um bloco por item selecionado. Use ponto ou vírgula no preço.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {selectedList.map((eq) => {
                   const d = itemsDraft[eq.id] ?? emptyItem();
                   return (
-                    <div key={eq.id} className="rounded-xl border bg-muted/20 p-4">
-                      <div className="mb-3 font-medium">{eq.nome}</div>
+                    <div key={eq.id} className="rounded-2xl border border-border/50 bg-muted/25 p-4 sm:p-5">
+                      <div className="mb-3 text-base font-semibold text-foreground">{eq.nome}</div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-2">
                           <Label>Preço unitário (R$)</Label>
@@ -478,11 +524,11 @@ export function PortalCotacao({ token }: { token: string }) {
                 })}
               </CardContent>
             </Card>
-            <div className="flex justify-between gap-3">
-              <Button type="button" variant="outline" onClick={() => setStep(1)}>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+              <Button type="button" variant="outline" className="rounded-full sm:min-w-[120px]" onClick={() => setStep(1)}>
                 Voltar
               </Button>
-              <Button type="button" size="lg" onClick={goStep3}>
+              <Button type="button" size="lg" className="h-12 rounded-full px-8 shadow-md" onClick={goStep3}>
                 Continuar para anexo
               </Button>
             </div>
@@ -491,10 +537,10 @@ export function PortalCotacao({ token }: { token: string }) {
 
         {step === 3 ? (
           <motion.div key="s3" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-4">
-            <Card>
+            <Card className="rounded-3xl border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Proposta formal (PDF)</CardTitle>
-                <CardDescription>Obrigatório. Máximo 10MB. Apenas PDF.</CardDescription>
+                <CardTitle className="text-lg">Proposta em PDF</CardTitle>
+                <CardDescription>Anexe o arquivo oficial da sua empresa (obrigatório, até 10 MB, somente PDF).</CardDescription>
               </CardHeader>
               <CardContent>
                 <Input
@@ -506,11 +552,11 @@ export function PortalCotacao({ token }: { token: string }) {
                 {pdf ? <p className="mt-2 text-sm text-muted-foreground">Selecionado: {pdf.name}</p> : null}
               </CardContent>
             </Card>
-            <div className="flex justify-between gap-3">
-              <Button type="button" variant="outline" onClick={() => setStep(2)}>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+              <Button type="button" variant="outline" className="rounded-full sm:min-w-[120px]" onClick={() => setStep(2)}>
                 Voltar
               </Button>
-              <Button type="button" size="lg" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+              <Button type="button" size="lg" className="h-12 rounded-full px-8 shadow-md" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
                 {mutation.isPending ? "Enviando…" : "Enviar cotação"}
               </Button>
             </div>
