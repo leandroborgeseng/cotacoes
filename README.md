@@ -30,6 +30,11 @@ O **Dockerfile** grava o SQLite em **`/app/data/cotacoes.db`** (diretório criad
 
 O disco do container na Railway é **efêmero** (dados somem a cada redeploy). Para produção estável na nuvem, o usual é **PostgreSQL** ou banco gerenciado (Turso/libSQL, etc.).
 
+### 502 / Bad Gateway na Railway
+
+- O **`railway.toml` com `startCommand = npm run start`** fazia o deploy **ignorar o CMD do Dockerfile** e subir o Next só em **localhost** → o proxy não alcança o processo (**502**). Esse arquivo foi removido; use o **CMD da imagem** (ou, na UI do serviço, deixe o **Custom Start Command** vazio).
+- O script **`npm run start`** agora usa **`next start -H 0.0.0.0`** para escutar em todas as interfaces. A Railway continua definindo **`PORT`**; o Next usa essa variável automaticamente.
+
 ## Variáveis
 
 | Variável       | Exemplo                         |
