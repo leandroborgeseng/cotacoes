@@ -1,10 +1,32 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ClipboardList, FileCheck2, Link2, Sparkles } from "lucide-react";
+import { ClipboardList, FileCheck2, Link2, Package, Sparkles } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { INSTITUICAO_PROPOSTA } from "@/lib/instituicao-publica";
+import { ensureDemoInvite } from "@/lib/ensure-demo-invite";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+async function resumoItensPretendidos() {
+  try {
+    await ensureDemoInvite();
+    const where = {
+      ativo: true,
+      hospital: { cnpj: INSTITUICAO_PROPOSTA.cnpj },
+    } as const;
+    const [agg, linhas] = await Promise.all([
+      prisma.equipamento.aggregate({ where, _sum: { quantidade: true } }),
+      prisma.equipamento.count({ where }),
+    ]);
+    const unidades = agg._sum.quantidade ?? 0;
+    return { linhas, unidades };
+  } catch {
+    return { linhas: 0, unidades: 0 };
+  }
+}
 
 const passos = [
   {
@@ -24,7 +46,9 @@ const passos = [
   },
 ] as const;
 
-export default function Home() {
+export default async function Home() {
+  const { linhas, unidades } = await resumoItensPretendidos();
+
   return (
     <div className="flex flex-1 flex-col">
       <section className="relative overflow-hidden px-4 pb-16 pt-10 sm:pb-20 sm:pt-14">
@@ -53,6 +77,25 @@ export default function Home() {
             <span className="font-medium text-foreground/90">{INSTITUICAO_PROPOSTA.razaoSocial}</span>. Sem
             planilhas complicadas: você marca os itens, informa preços e envia o PDF da proposta.
           </p>
+          {linhas > 0 ? (
+            <div className="mx-auto mt-6 flex max-w-md flex-col items-center gap-2 rounded-2xl border border-primary/20 bg-primary/[0.06] px-5 py-4 text-center sm:max-w-lg sm:flex-row sm:justify-center sm:gap-4 sm:py-4">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                <Package className="size-5" aria-hidden />
+              </span>
+              <p className="text-sm leading-relaxed text-foreground/95 sm:text-left sm:text-base">
+                <span className="font-semibold tabular-nums text-foreground">{linhas}</span>{" "}
+                {linhas === 1 ? "item" : "itens"} na lista que o hospital pretende cotar
+                {unidades !== linhas ? (
+                  <>
+                    , totalizando{" "}
+                    <span className="font-semibold tabular-nums text-foreground">{unidades}</span> unidades.
+                  </>
+                ) : (
+                  "."
+                )}
+              </p>
+            </div>
+          ) : null}
           <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link
               href="/c/demo-convite-local"
