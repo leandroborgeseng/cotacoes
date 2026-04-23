@@ -21,15 +21,10 @@ type Equipamento = {
   nome: string;
   descricao: string;
   quantidade: number;
-  categoria: string;
-  criticidade: string;
   ativo: boolean;
   importRef?: string;
   nomeOriginal?: string;
-  subcategoria?: string;
   setorHospitalar?: string;
-  anvisaClasse?: string;
-  tipo?: string;
   requisitosMinimos?: string;
 };
 
@@ -76,8 +71,6 @@ export function AdminPanel() {
       nome: "",
       descricao: "",
       quantidade: "1",
-      categoria: "",
-      criticidade: "",
     }),
     [],
   );
@@ -140,8 +133,6 @@ export function AdminPanel() {
         nome: draft.nome.trim(),
         descricao: draft.descricao.trim(),
         quantidade: Number(draft.quantidade) || 1,
-        categoria: draft.categoria.trim(),
-        criticidade: draft.criticidade.trim(),
       };
       if (editing) {
         const res = await fetch(`/api/admin/equipamentos/${editing.id}`, {
@@ -303,23 +294,14 @@ export function AdminPanel() {
                   <Label>Descrição</Label>
                   <Textarea rows={2} value={draft.descricao} onChange={(e) => setDraft((d) => ({ ...d, descricao: e.target.value }))} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Quantidade</Label>
-                    <Input
-                      inputMode="numeric"
-                      value={draft.quantidade}
-                      onChange={(e) => setDraft((d) => ({ ...d, quantidade: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Categoria</Label>
-                    <Input value={draft.categoria} onChange={(e) => setDraft((d) => ({ ...d, categoria: e.target.value }))} />
-                  </div>
-                </div>
                 <div className="space-y-2">
-                  <Label>Criticidade</Label>
-                  <Input value={draft.criticidade} onChange={(e) => setDraft((d) => ({ ...d, criticidade: e.target.value }))} />
+                  <Label>Quantidade</Label>
+                  <Input
+                    inputMode="numeric"
+                    className="max-w-[140px]"
+                    value={draft.quantidade}
+                    onChange={(e) => setDraft((d) => ({ ...d, quantidade: e.target.value }))}
+                  />
                 </div>
               </div>
               <DialogFooter>
@@ -347,13 +329,13 @@ export function AdminPanel() {
           <div className="space-y-2">
             <Label>
               Importar JSON (array simples ou enriquecido: nome_padronizado, descricao_editavel, setor_hospitalar,
-              anvisa_classe, requisitos_minimos, id, etc.)
+              requisitos_minimos, id, etc.)
             </Label>
             <Textarea
               rows={4}
               value={jsonImport}
               onChange={(e) => setJsonImport(e.target.value)}
-              placeholder='[{"id":"eq_001","nome_padronizado":"...","categoria":"Imagem"}]'
+              placeholder='[{"id":"eq_001","nome_padronizado":"...","setor_hospitalar":"UTI"}]'
             />
             <Button type="button" variant="secondary" size="sm" disabled={!jsonImport.trim() || importJson.isPending} onClick={() => importJson.mutate()}>
               Importar
@@ -366,9 +348,7 @@ export function AdminPanel() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Setor</TableHead>
-                  <TableHead>ANVISA</TableHead>
                   <TableHead>Qtd</TableHead>
-                  <TableHead>Categoria</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -382,9 +362,7 @@ export function AdminPanel() {
                       ) : null}
                     </TableCell>
                     <TableCell className="max-w-[140px] text-sm text-muted-foreground">{eq.setorHospitalar || "—"}</TableCell>
-                    <TableCell className="tabular-nums text-sm">{eq.anvisaClasse || "—"}</TableCell>
                     <TableCell>{eq.quantidade}</TableCell>
-                    <TableCell className="text-muted-foreground">{eq.categoria || "—"}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button
                         size="sm"
@@ -395,8 +373,6 @@ export function AdminPanel() {
                             nome: eq.nome,
                             descricao: eq.descricao,
                             quantidade: String(eq.quantidade),
-                            categoria: eq.categoria,
-                            criticidade: eq.criticidade,
                           });
                           setOpenEq(true);
                         }}
