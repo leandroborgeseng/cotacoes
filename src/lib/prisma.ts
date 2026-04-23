@@ -8,6 +8,12 @@ function requireDatabaseUrl() {
   if (!url) {
     throw new Error("DATABASE_URL não está definida.");
   }
+  if (process.env.NODE_ENV === "production" && url.startsWith("file:") && url.startsWith("file:./")) {
+    console.warn(
+      "[prisma] DATABASE_URL usa caminho relativo (file:./…). Em Docker/PaaS sem volume persistente o SQLite é apagado a cada deploy. " +
+        "Use caminho absoluto + volume, ex.: file:/app/data/cotacoes.db e monte /app/data. Ver README.md (Deploy).",
+    );
+  }
   return url;
 }
 

@@ -24,11 +24,16 @@ Abra http://localhost:3000
 
 Requisitos: build com `better-sqlite3` precisa de toolchain nativa (o `Dockerfile` usa `python3`, `make`, `g++` no Debian slim).
 
-## Deploy na Railway
+## Deploy na Railway (SQLite sem perder dados)
 
-O **Dockerfile** grava o SQLite em **`/app/data/cotacoes.db`** (diretório criado no start). Na Railway **não** existe volume em `/data` como no `docker-compose` local; usar `file:/data/...` quebrava o container e gerava **502**.
+O disco do **container** some a cada redeploy, **a menos** que o arquivo do banco fique em um **volume persistente**.
 
-O disco do container na Railway é **efêmero** (dados somem a cada redeploy). Para produção estável na nuvem, o usual é **PostgreSQL** ou banco gerenciado (Turso/libSQL, etc.).
+1. No serviço → **Settings** → **Volumes** → **Add volume** (ex.: nome `sqlite`).
+2. **Mount path** exatamente: **`/app/data`** (tem que bater com o `Dockerfile`).
+3. **Não** sobrescreva `DATABASE_URL` no painel, a menos que saiba o que está fazendo. O padrão da imagem é `file:/app/data/cotacoes.db`.
+4. Redeploy: migrações rodam no boot; os dados permanecem no volume.
+
+Se **não** criar o volume, o comportamento é um banco novo a cada deploy (parece “apagou tudo”). Para escalar ou evitar SQLite na nuvem, migre para **PostgreSQL** (Neon, Supabase, etc.) e troque `DATABASE_URL`.
 
 ### 502 / Bad Gateway na Railway
 
@@ -39,8 +44,8 @@ O disco do container na Railway é **efêmero** (dados somem a cada redeploy). P
 
 | Variável       | Exemplo                         |
 |----------------|----------------------------------|
-| `DATABASE_URL` | `file:./prisma/dev.db` (local)   |
-|                | `file:/data/cotacoes.db` (Docker)|
+| `DATABASE_URL` | `file:./prisma/dev.db` (local)        |
+|                | `file:/app/data/cotacoes.db` (Docker / Railway com volume em `/app/data`) |
 
 ## Scripts
 
