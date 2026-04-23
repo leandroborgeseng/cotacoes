@@ -58,6 +58,9 @@ model Equipamento {
   tipo               String @default("")
   requisitosMinimos  String @default("")
 
+  /** Referência interna (R$ / un.): não exposto no portal do fornecedor. */
+  precoUnitarioOrcado Decimal?
+
   cotacaoItens CotacaoItem[]
 
   @@index([hospitalId])

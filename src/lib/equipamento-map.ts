@@ -1,4 +1,4 @@
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 
 /** Normaliza rótulos de criticidade para exibição em pt-BR. */
 export function normalizarCriticidade(v: string): string {
@@ -15,6 +15,28 @@ function str(o: Record<string, unknown>, ...keys: string[]): string {
     if (typeof v === "string" && v.trim()) return v.trim();
   }
   return "";
+}
+
+/** Valor unitário orçado (R$) a partir de import JSON; null se ausente ou inválido. */
+export function parsePrecoUnitarioOrcado(o: Record<string, unknown>): Prisma.Decimal | null {
+  const raw =
+    o.precoUnitarioOrcado ??
+    o.preco_unitario_orcado ??
+    o.valor_estimado ??
+    o.valor_unitario_orcado;
+  if (raw === null || raw === undefined || raw === "") return null;
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) && raw >= 0 ? new Prisma.Decimal(raw) : null;
+  }
+  let s = String(raw).trim();
+  if (s.includes(",") && s.includes(".")) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else {
+    s = s.replace(",", ".");
+  }
+  const n = Number(s);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return new Prisma.Decimal(n);
 }
 
 function requisitosToString(o: Record<string, unknown>): string {
@@ -50,6 +72,7 @@ export function equipamentoFromImportRow(
   const anvisaClasse = str(o, "anvisa_classe", "anvisaClasse");
   const tipo = str(o, "tipo");
   const requisitosMinimos = requisitosToString(o);
+  const precoUnitarioOrcado = parsePrecoUnitarioOrcado(o);
 
   return {
     hospitalId,
@@ -65,5 +88,6 @@ export function equipamentoFromImportRow(
     anvisaClasse,
     tipo,
     requisitosMinimos,
+    precoUnitarioOrcado,
   };
 }

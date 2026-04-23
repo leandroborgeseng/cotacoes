@@ -26,6 +26,7 @@ type Equipamento = {
   nomeOriginal?: string;
   setorHospitalar?: string;
   requisitosMinimos?: string;
+  precoUnitarioOrcado?: unknown;
 };
 
 type CotacaoRow = {
@@ -47,7 +48,7 @@ type CotacaoRow = {
     condicoesPagamento: string;
     condicoesPagamentoDetalhe: string;
     observacoes: string;
-    equipamento: { nome: string };
+    equipamento: { nome: string; precoUnitarioOrcado?: unknown };
   }>;
 };
 
@@ -56,6 +57,30 @@ const money = (v: unknown) => {
   if (!Number.isFinite(n)) return "—";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 };
+
+function valorParaInputOrcado(v: unknown): string {
+  if (v == null || v === "") return "";
+  const n = typeof v === "string" ? Number(v) : Number(v);
+  if (!Number.isFinite(n)) return "";
+  return String(n);
+}
+
+function vsOrcadoBadge(cotado: unknown, orcado: unknown) {
+  const c = Number(cotado);
+  const o = orcado != null && orcado !== "" ? Number(orcado) : NaN;
+  if (!Number.isFinite(o) || o <= 0) {
+    return <span className="text-xs text-muted-foreground">Sem referência</span>;
+  }
+  if (!Number.isFinite(c)) return <span className="text-muted-foreground">—</span>;
+  const pct = ((c - o) / o) * 100;
+  if (Math.abs(pct) < 0.5) {
+    return <span className="text-xs text-muted-foreground">No orçado</span>;
+  }
+  if (c > o) {
+    return <span className="text-xs font-medium text-amber-800 dark:text-amber-400">+{pct.toFixed(1)}% acima</span>;
+  }
+  return <span className="text-xs font-medium text-emerald-800 dark:text-emerald-400">{pct.toFixed(1)}% abaixo</span>;
+}
 
 export function AdminPanel() {
   const router = useRouter();
@@ -71,6 +96,7 @@ export function AdminPanel() {
       nome: "",
       descricao: "",
       quantidade: "1",
+      precoUnitarioOrcado: "",
     }),
     [],
   );
@@ -128,13 +154,15 @@ export function AdminPanel() {
 
   const saveEquip = useMutation({
     mutationFn: async () => {
-      const body = {
+      const pOrc = draft.precoUnitarioOrcado.trim();
+      const body: Record<string, unknown> = {
         hospitalId: hid,
         nome: draft.nome.trim(),
         descricao: draft.descricao.trim(),
         quantidade: Number(draft.quantidade) || 1,
       };
       if (editing) {
+        body.precoUnitarioOrcado = pOrc === "" ? null : pOrc;
         const res = await fetch(`/api/admin/equipamentos/${editing.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -143,6 +171,7 @@ export function AdminPanel() {
         if (!res.ok) throw new Error("Falha ao atualizar.");
         return res.json();
       }
+      if (pOrc !== "") body.precoUnitarioOrcado = pOrc;
       const res = await fetch("/api/admin/equipamentos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -269,7 +298,10 @@ export function AdminPanel() {
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-lg">Equipamentos</CardTitle>
-            <CardDescription>Catálogo deste hospital — o que os fornecedores veem no convite.</CardDescription>
+            <CardDescription>
+              Catálogo deste hospital — o que os fornecedores veem no convite. O valor unitário orçado é só para o
+              hospital comparar com as cotações recebidas.
+            </CardDescription>
           </div>
           <Dialog
             open={openEq}
@@ -303,6 +335,20 @@ export function AdminPanel() {
                     onChange={(e) => setDraft((d) => ({ ...d, quantidade: e.target.value }))}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Valor unitário orçado (R$)</Label>
+                  <Input
+                    inputMode="decimal"
+                    placeholder="Opcional — ex.: 15000 ou 15000,50"
+                    className="max-w-[220px]"
+                    value={draft.precoUnitarioOrcado}
+                    onChange={(e) => setDraft((d) => ({ ...d, precoUnitarioOrcado: e.target.value }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Referência interna: não aparece para o fornecedor. Use para ver se a cotação ficou acima ou abaixo
+                    do previsto.
+                  </p>
+                </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setOpenEq(false)}>
@@ -329,7 +375,7 @@ export function AdminPanel() {
           <div className="space-y-2">
             <Label>
               Importar JSON (array simples ou enriquecido: nome_padronizado, descricao_editavel, setor_hospitalar,
-              requisitos_minimos, id, etc.)
+              preco_unitario_orcado ou valor_estimado, requisitos_minimos, id, etc.)
             </Label>
             <Textarea
               rows={4}
@@ -348,6 +394,7 @@ export function AdminPanel() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead className="w-20 text-right">Qtd</TableHead>
+                  <TableHead className="w-28 text-right">Orçado (un.)</TableHead>
                   <TableHead>Setor</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -362,6 +409,9 @@ export function AdminPanel() {
                       ) : null}
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-medium">{eq.quantidade}</TableCell>
+                    <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
+                      {money(eq.precoUnitarioOrcado)}
+                    </TableCell>
                     <TableCell className="max-w-[140px] text-sm text-muted-foreground">{eq.setorHospitalar || "—"}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button
@@ -373,6 +423,7 @@ export function AdminPanel() {
                             nome: eq.nome,
                             descricao: eq.descricao,
                             quantidade: String(eq.quantidade),
+                            precoUnitarioOrcado: valorParaInputOrcado(eq.precoUnitarioOrcado),
                           });
                           setOpenEq(true);
                         }}
@@ -401,7 +452,8 @@ export function AdminPanel() {
         <CardHeader>
           <CardTitle className="text-lg">Cotações recebidas</CardTitle>
           <CardDescription>
-            Filtre por CNPJ parcial do fornecedor. PDFs de até {(MAX_PDF_BYTES / (1024 * 1024)).toFixed(0)} MB.
+            Filtre por CNPJ parcial do fornecedor. A coluna “Vs orçado” usa o valor unitário orçado cadastrado em cada
+            equipamento. PDFs de até {(MAX_PDF_BYTES / (1024 * 1024)).toFixed(0)} MB.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -436,7 +488,9 @@ export function AdminPanel() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Equipamento</TableHead>
-                      <TableHead>Preço unit.</TableHead>
+                      <TableHead className="text-right">Orçado (un.)</TableHead>
+                      <TableHead className="text-right">Cotado (un.)</TableHead>
+                      <TableHead>Vs orçado</TableHead>
                       <TableHead>Prazo</TableHead>
                       <TableHead>Pagamento</TableHead>
                       <TableHead>Obs.</TableHead>
@@ -446,7 +500,9 @@ export function AdminPanel() {
                     {c.itens.map((it) => (
                       <TableRow key={it.id}>
                         <TableCell>{it.equipamento.nome}</TableCell>
-                        <TableCell>{money(it.precoUnitario)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{money(it.equipamento.precoUnitarioOrcado)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">{money(it.precoUnitario)}</TableCell>
+                        <TableCell>{vsOrcadoBadge(it.precoUnitario, it.equipamento.precoUnitarioOrcado)}</TableCell>
                         <TableCell>{it.prazoEntrega} dias</TableCell>
                         <TableCell className="text-sm">
                           {it.condicoesPagamento}

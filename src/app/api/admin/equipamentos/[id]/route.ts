@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { normalizarCriticidade } from "@/lib/equipamento-map";
+import { normalizarCriticidade, parsePrecoUnitarioOrcado } from "@/lib/equipamento-map";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -38,6 +38,16 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (typeof body.tipo === "string") data.tipo = body.tipo.trim();
   const reqMin = requisitosPatch(body);
   if (reqMin !== undefined) data.requisitosMinimos = reqMin;
+
+  const orcadoRaw = body.precoUnitarioOrcado ?? body.preco_unitario_orcado ?? body.valor_estimado;
+  if (orcadoRaw !== undefined) {
+    if (orcadoRaw === null || orcadoRaw === "") {
+      data.precoUnitarioOrcado = null;
+    } else {
+      const d = parsePrecoUnitarioOrcado({ precoUnitarioOrcado: orcadoRaw });
+      if (d) data.precoUnitarioOrcado = d;
+    }
+  }
 
   const row = await prisma.equipamento.update({
     where: { id },
