@@ -4,6 +4,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y python3 make g++ openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
+# O postinstall roda `prisma generate` — precisa do schema antes do `npm ci`
+COPY prisma ./prisma
+COPY prisma.config.ts ./prisma.config.ts
 RUN npm ci
 
 COPY . .
