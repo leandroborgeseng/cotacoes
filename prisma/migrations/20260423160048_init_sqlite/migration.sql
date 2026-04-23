@@ -1,27 +1,25 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
--- CreateEnum
-CREATE TYPE "EquipmentStatus" AS ENUM ('rascunho', 'pronto_para_cotacao', 'enviado', 'cotado');
-
 -- CreateTable
 CREATE TABLE "Equipment" (
-    "id" TEXT NOT NULL,
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "import_ref" TEXT,
     "nome_padronizado" TEXT NOT NULL,
+    "nome_original" TEXT NOT NULL DEFAULT '',
+    "tipo" TEXT NOT NULL DEFAULT '',
     "categoria" TEXT NOT NULL,
     "subcategoria" TEXT NOT NULL DEFAULT '',
+    "setor_hospitalar" TEXT NOT NULL DEFAULT '',
+    "anvisa_classe" TEXT NOT NULL DEFAULT '',
+    "criticidade" TEXT NOT NULL DEFAULT '',
     "descricao_original" TEXT NOT NULL DEFAULT '',
     "descricao_editavel" TEXT NOT NULL DEFAULT '',
-    "requisitos_minimos" JSONB NOT NULL DEFAULT '[]',
+    "requisitos_minimos" JSONB NOT NULL DEFAULT [],
     "quantidade" INTEGER NOT NULL DEFAULT 1,
-    "valor_estimado" DECIMAL(14,2) NOT NULL,
-    "valor_total_estimado" DECIMAL(14,2) NOT NULL,
-    "status" "EquipmentStatus" NOT NULL DEFAULT 'rascunho',
+    "valor_estimado" DECIMAL NOT NULL,
+    "valor_total_estimado" DECIMAL NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'rascunho',
     "ativo" BOOLEAN NOT NULL DEFAULT true,
     "observacoes" TEXT NOT NULL DEFAULT '',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Equipment_pkey" PRIMARY KEY ("id")
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateIndex

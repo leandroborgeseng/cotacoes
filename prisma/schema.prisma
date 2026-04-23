@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 enum EquipmentStatus {
@@ -29,8 +29,8 @@ model Equipment {
   descricao_editavel   String          @default("")
   requisitos_minimos   Json            @default("[]")
   quantidade           Int             @default(1)
-  valor_estimado       Decimal         @db.Decimal(14, 2)
-  valor_total_estimado Decimal         @db.Decimal(14, 2)
+  valor_estimado       Decimal
+  valor_total_estimado Decimal
   status               EquipmentStatus @default(rascunho)
   ativo                Boolean         @default(true)
   observacoes          String          @default("")

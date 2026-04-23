@@ -1,14 +1,12 @@
 services:
-  db:
-    image: postgres:16-alpine
+  app:
+    build: .
     ports:
-      - "5432:5432"
+      - "3000:3000"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: cotacoes
+      DATABASE_URL: file:/data/cotacoes.db
     volumes:
-      - cotacoes_pg:/var/lib/postgresql/data
+      - sqlite_data:/data
 
 volumes:
-  cotacoes_pg:
+  sqlite_data:
