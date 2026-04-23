@@ -226,9 +226,9 @@ export function PortalCotacao({ token }: { token: string }) {
           neste banco ou o convite foi desativado. Use o link enviado pelo hospital ou gere um novo no painel admin.
         </p>
         <p className="text-pretty text-xs text-muted-foreground">
-          Em deploy novo, rode <code className="rounded bg-muted px-1">npx prisma migrate deploy</code> e{" "}
-          <code className="rounded bg-muted px-1">npx prisma db seed</code> (o seed cria o convite demo sem apagar
-          cotações, a menos que use <code className="rounded bg-muted px-1">SEED_RESET=true</code>).
+          O link <code className="rounded bg-muted px-1">demo-convite-local</code> é criado automaticamente na primeira
+          visita após as migrações. Se o erro persistir, confira <code className="rounded bg-muted px-1">DATABASE_URL</code>{" "}
+          e se as tabelas existem (<code className="rounded bg-muted px-1">npx prisma migrate deploy</code>).
         </p>
       </div>
     );

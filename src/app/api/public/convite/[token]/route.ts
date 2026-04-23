@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEMO_CONVITE_TOKEN, ensureDemoInvite } from "@/lib/ensure-demo-invite";
 import { prisma } from "@/lib/prisma";
 
 type Ctx = { params: Promise<{ token: string }> };
@@ -6,6 +7,15 @@ type Ctx = { params: Promise<{ token: string }> };
 export async function GET(_req: Request, ctx: Ctx) {
   const raw = (await ctx.params).token;
   const token = decodeURIComponent(raw).trim();
+
+  try {
+    if (token === DEMO_CONVITE_TOKEN) {
+      await ensureDemoInvite();
+    }
+  } catch (e) {
+    console.error("[convite] bootstrap demo:", e);
+  }
+
   const convite = await prisma.conviteCotacao.findFirst({
     where: { token, ativo: true },
     include: {
