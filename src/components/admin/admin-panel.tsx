@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { CircleDollarSign, PackageCheck, Target } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,28 @@ function linhasComparacao(a: CotacaoRow, b: CotacaoRow) {
 function truncLabel(s: string, max = 32) {
   const t = s.trim();
   return t.length <= max ? t : `${t.slice(0, max)}…`;
+}
+
+/** Soma (quantidade × preço unitário orçado) por lista de equipamentos. */
+function investimentoPorLista(equips: Equipamento[]) {
+  let total = 0;
+  let linhasComOrcamento = 0;
+  let linhasSemOrcamento = 0;
+  for (const e of equips) {
+    const raw = e.precoUnitarioOrcado;
+    const pu = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
+    if (!Number.isFinite(pu) || pu <= 0) {
+      linhasSemOrcamento += 1;
+      continue;
+    }
+    linhasComOrcamento += 1;
+    total += e.quantidade * pu;
+  }
+  return { total, linhas: equips.length, linhasComOrcamento, linhasSemOrcamento };
+}
+
+function brl(n: number) {
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 const money = (v: unknown) => {
@@ -273,6 +296,14 @@ export function AdminPanel() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const dashFinanceiro = useMemo(() => {
+    const list = equipamentos.data ?? [];
+    return {
+      previsto: investimentoPorLista(list.filter((e) => e.ativo)),
+      realizado: investimentoPorLista(list.filter((e) => !e.ativo)),
+    };
+  }, [equipamentos.data]);
+
   const patchCotacaoItem = useMutation({
     mutationFn: async () => {
       if (!itemEdit) return;
@@ -343,6 +374,84 @@ export function AdminPanel() {
           </Button>
         </div>
       </header>
+
+      {hid ? (
+        <Card className="rounded-3xl border-primary/25 bg-gradient-to-br from-primary/[0.07] via-card to-card shadow-md">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Dashboard financeiro</CardTitle>
+            <CardDescription>
+              Totais em <span className="font-medium text-foreground/90">Σ (quantidade × valor unitário orçado)</span> no
+              catálogo do hospital selecionado. Itens <strong>na pré-cotação</strong> somam o previsto; itens em{" "}
+              <strong>já adquiridos</strong> somam o realizado — ajuste o valor orçado nesses itens para refletir o
+              fechado, se necessário.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {equipamentos.isLoading ? (
+              <div className="h-24 animate-pulse rounded-xl bg-muted/60" />
+            ) : (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm">
+                    <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                      <Target className="size-4 shrink-0" aria-hidden />
+                      Previsto (a adquirir)
+                    </div>
+                    <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">{brl(dashFinanceiro.previsto.total)}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {dashFinanceiro.previsto.linhas} item(ns) na pré-cotação ·{" "}
+                      {dashFinanceiro.previsto.linhasSemOrcamento > 0
+                        ? `${dashFinanceiro.previsto.linhasSemOrcamento} sem valor orçado (não entram na soma)`
+                        : "todos com valor orçado"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm">
+                    <div className="flex items-center gap-2 text-sm font-medium text-emerald-800 dark:text-emerald-400">
+                      <PackageCheck className="size-4 shrink-0" aria-hidden />
+                      Realizado (adquiridos)
+                    </div>
+                    <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">{brl(dashFinanceiro.realizado.total)}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {dashFinanceiro.realizado.linhas} item(ns) fora do convite ·{" "}
+                      {dashFinanceiro.realizado.linhasSemOrcamento > 0
+                        ? `${dashFinanceiro.realizado.linhasSemOrcamento} sem valor orçado`
+                        : "todos com valor orçado"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm sm:col-span-2 lg:col-span-1">
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground/90">
+                      <CircleDollarSign className="size-4 shrink-0" aria-hidden />
+                      Projeto (previsto + realizado)
+                    </div>
+                    <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">
+                      {brl(dashFinanceiro.previsto.total + dashFinanceiro.realizado.total)}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">Visão consolidada do catálogo deste hospital.</p>
+                  </div>
+                </div>
+                {dashFinanceiro.previsto.total + dashFinanceiro.realizado.total > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Proporção realizado vs. total</p>
+                    <div className="flex h-3 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="bg-emerald-600/90 dark:bg-emerald-500"
+                        style={{
+                          width: `${Math.min(100, Math.round((dashFinanceiro.realizado.total / (dashFinanceiro.previsto.total + dashFinanceiro.realizado.total)) * 100))}%`,
+                        }}
+                        title="Realizado"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {Math.round((dashFinanceiro.realizado.total / (dashFinanceiro.previsto.total + dashFinanceiro.realizado.total)) * 100)}% do
+                      valor consolidado já está na base de adquiridos (por valores orçados cadastrados).
+                    </p>
+                  </div>
+                ) : null}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="space-y-2">
