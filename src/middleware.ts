@@ -1,11 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
-import { COOKIE } from "@/lib/admin-jwt";
+import { COOKIE, getAdminJwtSecretKey } from "@/lib/admin-jwt";
 
 function secret() {
-  const s = process.env.ADMIN_JWT_SECRET;
-  if (!s || s.length < 16) return null;
-  return new TextEncoder().encode(s);
+  return getAdminJwtSecretKey();
 }
 
 export async function middleware(req: NextRequest) {
@@ -18,13 +16,6 @@ export async function middleware(req: NextRequest) {
   }
 
   const key = secret();
-  if (!key) {
-    if (path.startsWith("/api/")) {
-      return NextResponse.json({ error: "ADMIN_JWT_SECRET não configurado." }, { status: 500 });
-    }
-    return NextResponse.redirect(new URL("/admin/login", req.url));
-  }
-
   const token = req.cookies.get(COOKIE)?.value;
   if (!token) {
     if (path.startsWith("/api/")) {

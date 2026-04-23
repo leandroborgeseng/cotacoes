@@ -2,12 +2,21 @@ import { SignJWT, jwtVerify } from "jose";
 
 const COOKIE = "prec_admin";
 
+/** Fallback se ADMIN_JWT_SECRET não estiver definido (mesmo valor usado no middleware). */
+const EMBEDDED_JWT_SECRET = "precotacao-cotacoes-jwt-secret-hardcoded-2026";
+
+function resolveJwtSecret(): string {
+  const env = process.env.ADMIN_JWT_SECRET?.trim();
+  if (env && env.length >= 16) return env;
+  return EMBEDDED_JWT_SECRET;
+}
+
+export function getAdminJwtSecretKey(): Uint8Array {
+  return new TextEncoder().encode(resolveJwtSecret());
+}
+
 function secretKey() {
-  const s = process.env.ADMIN_JWT_SECRET;
-  if (!s || s.length < 16) {
-    throw new Error("ADMIN_JWT_SECRET deve ter pelo menos 16 caracteres.");
-  }
-  return new TextEncoder().encode(s);
+  return getAdminJwtSecretKey();
 }
 
 export async function createAdminToken(): Promise<string> {
