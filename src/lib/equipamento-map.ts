@@ -17,13 +17,7 @@ function str(o: Record<string, unknown>, ...keys: string[]): string {
   return "";
 }
 
-/** Valor unitário orçado (R$) a partir de import JSON; null se ausente ou inválido. */
-export function parsePrecoUnitarioOrcado(o: Record<string, unknown>): Prisma.Decimal | null {
-  const raw =
-    o.precoUnitarioOrcado ??
-    o.preco_unitario_orcado ??
-    o.valor_estimado ??
-    o.valor_unitario_orcado;
+function parseDecimalOrNull(raw: unknown): Prisma.Decimal | null {
   if (raw === null || raw === undefined || raw === "") return null;
   if (typeof raw === "number") {
     return Number.isFinite(raw) && raw >= 0 ? new Prisma.Decimal(raw) : null;
@@ -37,6 +31,27 @@ export function parsePrecoUnitarioOrcado(o: Record<string, unknown>): Prisma.Dec
   const n = Number(s);
   if (!Number.isFinite(n) || n < 0) return null;
   return new Prisma.Decimal(n);
+}
+
+/** Valor unitário orçado (R$) a partir de import JSON; null se ausente ou inválido. */
+export function parsePrecoUnitarioOrcado(o: Record<string, unknown>): Prisma.Decimal | null {
+  return parseDecimalOrNull(
+    o.precoUnitarioOrcado ??
+      o.preco_unitario_orcado ??
+      o.valor_estimado ??
+      o.valor_unitario_orcado,
+  );
+}
+
+function parseValorTotalOrcado(o: Record<string, unknown>): Prisma.Decimal | null {
+  return parseDecimalOrNull(o.valorTotalOrcado ?? o.valor_total_orcado);
+}
+
+function parsePrevisaoAquisicao(o: Record<string, unknown>): number | null {
+  const raw = o.previsaoAquisicao ?? o.previsao_aquisicao;
+  if (raw === null || raw === undefined || raw === "") return null;
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) ? n : null;
 }
 
 function requisitosToString(o: Record<string, unknown>): string {
@@ -73,6 +88,9 @@ export function equipamentoFromImportRow(
   const tipo = str(o, "tipo");
   const requisitosMinimos = requisitosToString(o);
   const precoUnitarioOrcado = parsePrecoUnitarioOrcado(o);
+  const valorTotalOrcado = parseValorTotalOrcado(o);
+  const previsaoAquisicao = parsePrevisaoAquisicao(o);
+  const justificativa = str(o, "justificativa");
 
   return {
     hospitalId,
@@ -89,5 +107,8 @@ export function equipamentoFromImportRow(
     tipo,
     requisitosMinimos,
     precoUnitarioOrcado,
+    valorTotalOrcado,
+    previsaoAquisicao,
+    justificativa,
   };
 }

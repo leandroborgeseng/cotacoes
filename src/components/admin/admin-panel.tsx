@@ -29,6 +29,9 @@ type Equipamento = {
   setorHospitalar?: string;
   requisitosMinimos?: string;
   precoUnitarioOrcado?: unknown;
+  valorTotalOrcado?: unknown;
+  previsaoAquisicao?: number | null;
+  justificativa?: string;
 };
 
 type CotacaoRow = {
@@ -153,6 +156,12 @@ function investimentoPorLista(equips: Equipamento[]) {
   let unidadesTotal = 0;
   for (const e of equips) {
     unidadesTotal += e.quantidade;
+    const totalOrcado = e.valorTotalOrcado === null || e.valorTotalOrcado === undefined || e.valorTotalOrcado === "" ? NaN : Number(e.valorTotalOrcado);
+    if (Number.isFinite(totalOrcado) && totalOrcado > 0) {
+      linhasComOrcamento += 1;
+      total += totalOrcado;
+      continue;
+    }
     const raw = e.precoUnitarioOrcado;
     const pu = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
     if (!Number.isFinite(pu) || pu <= 0) {
@@ -667,7 +676,9 @@ export function AdminPanel() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead className="w-20 text-right">Qtd</TableHead>
+                    <TableHead className="w-24 text-right">Ano</TableHead>
                     <TableHead className="w-28 text-right">Orçado (un.)</TableHead>
+                    <TableHead className="w-28 text-right">Orçado total</TableHead>
                     <TableHead>Setor</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -675,7 +686,7 @@ export function AdminPanel() {
                 <TableBody>
                   {(equipamentos.data ?? []).filter((e) => e.ativo).length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
                         Nenhum item ativo. Crie um equipamento ou reative um que estava como já adquirido.
                       </TableCell>
                     </TableRow>
@@ -692,7 +703,13 @@ export function AdminPanel() {
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-medium">{eq.quantidade}</TableCell>
                         <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
+                          {eq.previsaoAquisicao || "—"}
+                        </TableCell>
+                        <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
                           {money(eq.precoUnitarioOrcado)}
+                        </TableCell>
+                        <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
+                          {money(eq.valorTotalOrcado)}
                         </TableCell>
                         <TableCell className="max-w-[140px] text-sm text-muted-foreground">{eq.setorHospitalar || "—"}</TableCell>
                         <TableCell className="text-right">
@@ -752,7 +769,9 @@ export function AdminPanel() {
                     <TableRow>
                       <TableHead>Nome</TableHead>
                       <TableHead className="w-20 text-right">Qtd</TableHead>
+                      <TableHead className="w-24 text-right">Ano</TableHead>
                       <TableHead className="w-28 text-right">Orçado (un.)</TableHead>
+                      <TableHead className="w-28 text-right">Orçado total</TableHead>
                       <TableHead>Setor</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -769,7 +788,9 @@ export function AdminPanel() {
                             ) : null}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{eq.quantidade}</TableCell>
+                          <TableCell className="text-right text-sm tabular-nums">{eq.previsaoAquisicao || "—"}</TableCell>
                           <TableCell className="text-right text-sm tabular-nums">{money(eq.precoUnitarioOrcado)}</TableCell>
+                          <TableCell className="text-right text-sm tabular-nums">{money(eq.valorTotalOrcado)}</TableCell>
                           <TableCell className="max-w-[140px] text-sm">{eq.setorHospitalar || "—"}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex flex-wrap justify-end gap-2">

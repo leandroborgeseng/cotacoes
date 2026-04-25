@@ -60,6 +60,9 @@ model Equipamento {
 
   /** Referência interna (R$ / un.): não exposto no portal do fornecedor. */
   precoUnitarioOrcado Decimal?
+  valorTotalOrcado    Decimal?
+  previsaoAquisicao   Int?
+  justificativa       String   @default("")
 
   cotacaoItens CotacaoItem[]
 
