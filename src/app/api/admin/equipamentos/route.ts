@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureDemoInvite } from "@/lib/ensure-demo-invite";
 import { prisma } from "@/lib/prisma";
 import { equipamentoFromImportRow } from "@/lib/equipamento-map";
 
@@ -7,6 +8,11 @@ export async function GET(req: Request) {
   const hospitalId = searchParams.get("hospitalId");
   if (!hospitalId) {
     return NextResponse.json({ error: "hospitalId obrigatório." }, { status: 400 });
+  }
+  try {
+    await ensureDemoInvite();
+  } catch (e) {
+    console.error("[admin/equipamentos] sync demo catalog:", e);
   }
   const rows = await prisma.equipamento.findMany({
     where: { hospitalId },
