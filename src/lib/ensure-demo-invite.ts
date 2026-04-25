@@ -14,6 +14,59 @@ const HOSPITAL = {
 
 export const DEMO_CONVITE_TOKEN = "demo-convite-local";
 
+async function syncDemoCatalog(hospitalId: string): Promise<void> {
+  const data = dadosCatalogoCreateMany(hospitalId);
+  const importRefs = data.map((row) => row.importRef).filter((ref): ref is string => Boolean(ref));
+  const importRefSet = new Set(importRefs);
+
+  for (const row of data) {
+    const existing = row.importRef
+      ? await prisma.equipamento.findFirst({
+          where: {
+            hospitalId,
+            importRef: row.importRef,
+          },
+          select: { id: true },
+        })
+      : null;
+
+    if (existing) {
+      await prisma.equipamento.update({
+        where: { id: existing.id },
+        data: {
+          ...row,
+          ativo: true,
+        },
+      });
+    } else {
+      await prisma.equipamento.create({
+        data: {
+          ...row,
+          ativo: true,
+        },
+      });
+    }
+  }
+
+  const antigos = await prisma.equipamento.findMany({
+    where: { hospitalId },
+    select: {
+      id: true,
+      importRef: true,
+    },
+  });
+  const idsAntigos = antigos
+    .filter((eq) => !eq.importRef || !importRefSet.has(eq.importRef))
+    .map((eq) => eq.id);
+
+  if (idsAntigos.length > 0) {
+    await prisma.equipamento.updateMany({
+      where: { id: { in: idsAntigos } },
+      data: { ativo: false },
+    });
+  }
+}
+
 /**
  * Garante hospital, convite demo e equipamentos (idempotente).
  * Usado no seed e na API pública para deploys onde `db seed` não roda.
@@ -47,15 +100,16 @@ export async function ensureDemoInvite(): Promise<void> {
     });
   }
 
-  const qtd = await prisma.equipamento.count({ where: { hospitalId: hospital.id } });
-
-  /** Só preenche catálogo vazio (primeiro uso). Nunca apaga nem substitui equipamentos existentes. */
-  if (qtd === 0) {
-    const data =
-      hospital.cnpj === HOSPITAL.cnpj
-        ? dadosCatalogoCreateMany(hospital.id)
-        : SEED_EQUIPAMENTOS_GENERICOS.map((e) => equipamentoFromImportRow(e as unknown as Record<string, unknown>, hospital.id));
-    await prisma.equipamento.createMany({ data });
+  if (hospital.cnpj === HOSPITAL.cnpj) {
+    await syncDemoCatalog(hospital.id);
+  } else {
+    const qtd = await prisma.equipamento.count({ where: { hospitalId: hospital.id } });
+    if (qtd === 0) {
+      const data = SEED_EQUIPAMENTOS_GENERICOS.map((e) =>
+        equipamentoFromImportRow(e as unknown as Record<string, unknown>, hospital.id),
+      );
+      await prisma.equipamento.createMany({ data });
+    }
   }
 }
 
