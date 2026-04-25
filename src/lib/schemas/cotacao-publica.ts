@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cnpjDigitCount } from "@/lib/format-cnpj";
 
 export const condicaoPagamentoEnum = z.enum(["A_VISTA", "FATURADO_30_60_90", "OUTRO"]);
 
@@ -15,7 +16,10 @@ export const cotacaoPublicaPayload = z
   .object({
     token: z.string().min(8),
     fornecedorNome: z.string().min(2).max(200),
-    fornecedorCnpj: z.string().min(8).max(20),
+    fornecedorCnpj: z
+      .string()
+      .max(22)
+      .refine((s) => cnpjDigitCount(s) === 14, "CNPJ deve ter 14 dígitos."),
     representanteNome: z.string().min(2).max(200),
     telefone: z.string().min(8).max(30),
     email: z.string().email().max(200),

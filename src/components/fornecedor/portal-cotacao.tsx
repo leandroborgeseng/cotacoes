@@ -3,11 +3,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { condicaoPagamentoEnum, cotacaoPublicaPayload } from "@/lib/schemas/cotacao-publica";
+import { BrlMoneyInput } from "@/components/ui/brl-money-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { centsDigitStringToNumber } from "@/lib/format-brl-input";
+import { formatCnpjInput, cnpjDigitCount } from "@/lib/format-cnpj";
 import { INSTITUICAO_PROPOSTA } from "@/lib/instituicao-publica";
 import { MAX_PDF_BYTES } from "@/lib/pdf-constants";
 import { cn } from "@/lib/utils";
@@ -46,7 +49,9 @@ function requisitosLegivel(jsonOuTexto: string | undefined): string {
 
 const topoSchema = z.object({
   fornecedorNome: z.string().min(2, "Informe o nome da empresa."),
-  fornecedorCnpj: z.string().min(8, "CNPJ muito curto."),
+  fornecedorCnpj: z
+    .string()
+    .refine((s) => cnpjDigitCount(s) === 14, "Informe o CNPJ completo (14 dígitos)."),
   representanteNome: z.string().min(2, "Informe o representante."),
   telefone: z.string().min(8, "Telefone muito curto."),
   email: z.string().email("E-mail inválido."),
@@ -59,7 +64,8 @@ const topoSchema = z.object({
 type TopoForm = z.infer<typeof topoSchema>;
 
 type ItemDraft = {
-  precoUnitario: string;
+  /** Dígitos que representam centavos (ex.: "199" = R$ 1,99). */
+  precoCentDigits: string;
   prazoEntrega: string;
   condicoesPagamento: z.infer<typeof condicaoPagamentoEnum>;
   condicoesPagamentoDetalhe: string;
@@ -67,7 +73,7 @@ type ItemDraft = {
 };
 
 const emptyItem = (): ItemDraft => ({
-  precoUnitario: "",
+  precoCentDigits: "",
   prazoEntrega: "",
   condicoesPagamento: "A_VISTA",
   condicoesPagamentoDetalhe: "",
@@ -159,7 +165,7 @@ export function PortalCotacao({ token }: { token: string }) {
         const d = itemsDraft[eq.id] ?? emptyItem();
         return {
           equipamentoId: eq.id,
-          precoUnitario: Number(d.precoUnitario.replace(",", ".")),
+          precoUnitario: centsDigitStringToNumber(d.precoCentDigits),
           prazoEntrega: Number(d.prazoEntrega),
           condicoesPagamento: d.condicoesPagamento,
           condicoesPagamentoDetalhe: d.condicoesPagamentoDetalhe,
@@ -195,10 +201,33 @@ export function PortalCotacao({ token }: { token: string }) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error?.toString?.() ?? "Falha ao enviar.");
       }
-      return res.json();
+      return res.json() as Promise<{
+        ok: boolean;
+        id: string;
+        minhaCotacaoUrl: string;
+        emailSent: boolean;
+        emailSkipped: boolean;
+        emailError?: string;
+      }>;
     },
-    onSuccess: () => {
-      toast.success("Cotação enviada com sucesso!");
+    onSuccess: (data) => {
+      let description =
+        "Guarde o link do resumo da sua proposta — você também pode abri-lo agora nesta página.";
+      if (data.emailSent) {
+        description = `Enviamos um e-mail para você com o link para revisar o que foi enviado. Se não achar na caixa de entrada, verifique o spam.`;
+      } else if (data.emailSkipped) {
+        description = `E-mail automático não está configurado no servidor. Abra o resumo da sua cotação aqui: ${data.minhaCotacaoUrl}`;
+      } else if (data.emailError) {
+        description = `Não foi possível enviar o e-mail agora (${data.emailError}). Você pode conferir o envio neste link: ${data.minhaCotacaoUrl}`;
+      }
+      toast.success("Cotação enviada com sucesso!", {
+        description,
+        duration: 14_000,
+        action: {
+          label: "Ver resumo",
+          onClick: () => window.open(data.minhaCotacaoUrl, "_blank", "noopener,noreferrer"),
+        },
+      });
       setStep(1);
       form.reset();
       setSelected({});
@@ -255,7 +284,7 @@ export function PortalCotacao({ token }: { token: string }) {
   function goStep3() {
     for (const eq of selectedList) {
       const d = itemsDraft[eq.id] ?? emptyItem();
-      const preco = Number(d.precoUnitario.replace(",", "."));
+      const preco = centsDigitStringToNumber(d.precoCentDigits);
       const prazo = Number(d.prazoEntrega);
       if (!Number.isFinite(preco) || preco <= 0) {
         toast.error(`Preço inválido: ${eq.nome}`);
@@ -357,7 +386,20 @@ export function PortalCotacao({ token }: { token: string }) {
                 </div>
                 <div className="space-y-2">
                   <Label>CNPJ</Label>
-                  <Input {...form.register("fornecedorCnpj")} />
+                  <Controller
+                    control={form.control}
+                    name="fornecedorCnpj"
+                    render={({ field }) => (
+                      <Input
+                        {...field}
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="00.000.000/0000-00"
+                        className="tabular-nums"
+                        onChange={(e) => field.onChange(formatCnpjInput(e.target.value))}
+                      />
+                    )}
+                  />
                   {form.formState.errors.fornecedorCnpj ? (
                     <p className="text-xs text-destructive">{form.formState.errors.fornecedorCnpj.message}</p>
                   ) : null}
@@ -471,8 +513,8 @@ export function PortalCotacao({ token }: { token: string }) {
               <CardHeader className="border-b border-border/50 bg-muted/20">
                 <CardTitle className="text-lg">Planilha de valores</CardTitle>
                 <CardDescription>
-                  Preencha linha a linha, como no Excel. Preço em reais (vírgula ou ponto). Role horizontalmente se
-                  precisar.
+                  Preencha linha a linha, como no Excel. No preço, digite só números — pontos e vírgula em reais (R$)
+                  são aplicados automaticamente. Role horizontalmente se precisar.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
@@ -523,13 +565,12 @@ export function PortalCotacao({ token }: { token: string }) {
                               {eq.quantidade}
                             </td>
                             <td className={cn("border border-border/60 p-0", rowBg)}>
-                              <Input
-                                inputMode="decimal"
+                              <BrlMoneyInput
                                 placeholder="0,00"
                                 className="h-10 min-w-[6.5rem] rounded-none border-0 bg-transparent px-2 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
-                                value={d.precoUnitario}
-                                onChange={(e) =>
-                                  setItemsDraft((x) => ({ ...x, [eq.id]: { ...d, precoUnitario: e.target.value } }))
+                                valueDigits={d.precoCentDigits}
+                                onDigitsChange={(precoCentDigits) =>
+                                  setItemsDraft((x) => ({ ...x, [eq.id]: { ...d, precoCentDigits } }))
                                 }
                               />
                             </td>

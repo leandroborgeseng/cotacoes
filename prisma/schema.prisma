@@ -90,6 +90,9 @@ model Cotacao {
 
   arquivoPdf String
 
+  /** Token secreto para o fornecedor reabrir o resumo da proposta (link no e-mail). */
+  fornecedorViewToken String? @unique
+
   createdAt DateTime @default(now())
 
   itens CotacaoItem[]

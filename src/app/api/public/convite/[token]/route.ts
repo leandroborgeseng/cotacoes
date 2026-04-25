@@ -39,6 +39,9 @@ export async function GET(_req: Request, ctx: Ctx) {
       cidade: hospital.cidade,
       uf: hospital.uf,
     },
-    equipamentos: hospital.equipamentos.map(({ precoUnitarioOrcado: _omit, ...eq }) => eq),
+    equipamentos: hospital.equipamentos.map(({ precoUnitarioOrcado, ...eq }) => {
+      void precoUnitarioOrcado;
+      return eq;
+    }),
   });
 }

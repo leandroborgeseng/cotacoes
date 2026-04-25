@@ -1,10 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
+import { getAppBaseUrl } from "@/lib/app-base-url";
 import { MAX_PDF_BYTES } from "@/lib/pdf-constants";
 import { assertPdfMagic, saveCotacaoPdf } from "@/lib/pdf-upload";
 import { prisma } from "@/lib/prisma";
 import { cotacaoPublicaPayload } from "@/lib/schemas/cotacao-publica";
+import { sendFornecedorCotacaoConfirmacao } from "@/lib/send-fornecedor-cotacao-email";
 
 export async function POST(req: Request) {
   const form = await req.formData();
@@ -59,6 +61,9 @@ export async function POST(req: Request) {
   }
 
   const cotacaoId = randomUUID();
+  const fornecedorViewToken = randomBytes(24).toString("hex");
+  const baseUrl = getAppBaseUrl();
+  const minhaCotacaoUrl = `${baseUrl}/minha-cotacao/${fornecedorViewToken}`;
 
   try {
     const pdfPath = await saveCotacaoPdf(cotacaoId, buf);
@@ -78,6 +83,7 @@ export async function POST(req: Request) {
           stand: data.stand ?? "",
           feiraLocalizacao: data.feiraLocalizacao ?? "",
           arquivoPdf: pdfPath,
+          fornecedorViewToken,
           itens: {
             create: data.itens.map((it) => ({
               equipamentoId: it.equipamentoId,
@@ -96,5 +102,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Erro ao salvar cotação." }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, id: cotacaoId });
+  let emailSent = false;
+  let emailSkipped = false;
+  let emailError: string | undefined;
+
+  try {
+    const mail = await sendFornecedorCotacaoConfirmacao({
+      to: data.email.trim(),
+      fornecedorNome: data.fornecedorNome.trim(),
+      hospitalNome: convite.hospital.nome,
+      conviteTitulo: convite.titulo,
+      minhaCotacaoUrl,
+    });
+    if (mail.skipped) emailSkipped = true;
+    else if (mail.ok) emailSent = true;
+    else emailError = mail.error;
+  } catch (e) {
+    console.error("E-mail de confirmação:", e);
+    emailError = e instanceof Error ? e.message : "Falha ao enviar e-mail.";
+  }
+
+  return NextResponse.json({
+    ok: true,
+    id: cotacaoId,
+    minhaCotacaoUrl,
+    emailSent,
+    emailSkipped,
+    emailError,
+  });
 }

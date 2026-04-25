@@ -10,11 +10,14 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { BrlMoneyInput } from "@/components/ui/brl-money-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { centsDigitStringToNumber, reaisToCentsDigitString, sanitizeBrlCentDigits } from "@/lib/format-brl-input";
+import { formatCnpjInput } from "@/lib/format-cnpj";
 import { MAX_PDF_BYTES } from "@/lib/pdf-constants";
 
 type Hospital = { id: string; nome: string; cnpj: string; cidade: string; uf: string };
@@ -156,7 +159,10 @@ function investimentoPorLista(equips: Equipamento[]) {
   let unidadesTotal = 0;
   for (const e of equips) {
     unidadesTotal += e.quantidade;
-    const totalOrcado = e.valorTotalOrcado === null || e.valorTotalOrcado === undefined || e.valorTotalOrcado === "" ? NaN : Number(e.valorTotalOrcado);
+    const totalOrcado =
+      e.valorTotalOrcado === null || e.valorTotalOrcado === undefined || e.valorTotalOrcado === ""
+        ? NaN
+        : Number(e.valorTotalOrcado);
     if (Number.isFinite(totalOrcado) && totalOrcado > 0) {
       linhasComOrcamento += 1;
       total += totalOrcado;
@@ -174,6 +180,30 @@ function investimentoPorLista(equips: Equipamento[]) {
   return { total, linhas: equips.length, linhasComOrcamento, linhasSemOrcamento, unidadesTotal };
 }
 
+function anoAquisicao(e: Equipamento) {
+  return Number.isFinite(Number(e.previsaoAquisicao)) ? Number(e.previsaoAquisicao) : null;
+}
+
+function investimentosPorAno(equips: Equipamento[]) {
+  const anos = [...new Set(equips.map(anoAquisicao))].sort((a, b) => {
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return a - b;
+  });
+
+  return anos.map((ano) => {
+    const list = equips.filter((e) => anoAquisicao(e) === ano);
+    const previsto = investimentoPorLista(list.filter((e) => e.ativo));
+    const realizado = investimentoPorLista(list.filter((e) => !e.ativo));
+    return {
+      ano,
+      previsto,
+      realizado,
+      total: investimentoPorLista(list),
+    };
+  });
+}
+
 function brl(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -183,13 +213,6 @@ const money = (v: unknown) => {
   if (!Number.isFinite(n)) return "—";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 };
-
-function valorParaInputOrcado(v: unknown): string {
-  if (v == null || v === "") return "";
-  const n = typeof v === "string" ? Number(v) : Number(v);
-  if (!Number.isFinite(n)) return "";
-  return String(n);
-}
 
 function vsOrcadoBadge(cotado: unknown, orcado: unknown) {
   const c = Number(cotado);
@@ -212,6 +235,8 @@ export function AdminPanel() {
   const router = useRouter();
   const qc = useQueryClient();
   const [hospitalId, setHospitalId] = useState<string>("");
+  const [equipAnoFilter, setEquipAnoFilter] = useState("todos");
+  const [equipStatusFilter, setEquipStatusFilter] = useState("todos");
   const [cnpjFilter, setCnpjFilter] = useState("");
   const [compareOpen, setCompareOpen] = useState(false);
   const [compareA, setCompareA] = useState("");
@@ -301,7 +326,8 @@ export function AdminPanel() {
 
   const saveEquip = useMutation({
     mutationFn: async () => {
-      const pOrc = draft.precoUnitarioOrcado.trim();
+      const pDigits = sanitizeBrlCentDigits(draft.precoUnitarioOrcado);
+      const orcadoNum = pDigits === "" ? null : centsDigitStringToNumber(pDigits);
       const body: Record<string, unknown> = {
         hospitalId: hid,
         nome: draft.nome.trim(),
@@ -309,7 +335,7 @@ export function AdminPanel() {
         quantidade: Number(draft.quantidade) || 1,
       };
       if (editing) {
-        body.precoUnitarioOrcado = pOrc === "" ? null : pOrc;
+        body.precoUnitarioOrcado = orcadoNum;
         const res = await fetch(`/api/admin/equipamentos/${editing.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -318,7 +344,7 @@ export function AdminPanel() {
         if (!res.ok) throw new Error("Falha ao atualizar.");
         return res.json();
       }
-      if (pOrc !== "") body.precoUnitarioOrcado = pOrc;
+      if (orcadoNum != null) body.precoUnitarioOrcado = orcadoNum;
       const res = await fetch("/api/admin/equipamentos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -384,13 +410,36 @@ export function AdminPanel() {
     return {
       previsto: investimentoPorLista(list.filter((e) => e.ativo)),
       realizado: investimentoPorLista(list.filter((e) => !e.ativo)),
+      porAno: investimentosPorAno(list),
     };
   }, [equipamentos.data]);
+
+  const anosEquipamentos = useMemo(() => {
+    const anos = [...new Set((equipamentos.data ?? []).map(anoAquisicao).filter((ano): ano is number => ano !== null))];
+    return anos.sort((a, b) => a - b);
+  }, [equipamentos.data]);
+
+  const equipamentosFiltrados = useMemo(() => {
+    const ano = equipAnoFilter === "todos" ? null : Number(equipAnoFilter);
+    return (equipamentos.data ?? []).filter((eq) => {
+      const anoOk = ano === null || anoAquisicao(eq) === ano;
+      const statusOk =
+        equipStatusFilter === "todos" ||
+        (equipStatusFilter === "ativos" && eq.ativo) ||
+        (equipStatusFilter === "adquiridos" && !eq.ativo);
+      return anoOk && statusOk;
+    });
+  }, [equipAnoFilter, equipStatusFilter, equipamentos.data]);
+
+  const equipamentosAtivosFiltrados = equipamentosFiltrados.filter((e) => e.ativo);
+  const equipamentosAdquiridosFiltrados = equipamentosFiltrados.filter((e) => !e.ativo);
+  const mostrarAtivos = equipStatusFilter !== "adquiridos";
+  const mostrarAdquiridos = equipStatusFilter !== "ativos";
 
   const patchCotacaoItem = useMutation({
     mutationFn: async () => {
       if (!itemEdit) return;
-      const preco = Number(itemEdit.precoUnitario.replace(",", "."));
+      const preco = centsDigitStringToNumber(itemEdit.precoUnitario);
       const prazo = Number(itemEdit.prazoEntrega);
       if (!Number.isFinite(preco) || preco <= 0) throw new Error("Preço unitário inválido.");
       if (!Number.isFinite(prazo) || prazo < 1) throw new Error("Prazo inválido.");
@@ -463,8 +512,9 @@ export function AdminPanel() {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Dashboard financeiro</CardTitle>
             <CardDescription>
-              Totais em <span className="font-medium text-foreground/90">Σ (quantidade × valor unitário orçado)</span> no
-              catálogo do hospital selecionado. Itens <strong>na pré-cotação</strong> somam o previsto; itens em{" "}
+              Totais pelo valor total orçado de cada item ou, quando ausente, por{" "}
+              <span className="font-medium text-foreground/90">Σ (quantidade × valor unitário orçado)</span>. Itens{" "}
+              <strong>na pré-cotação</strong> somam o previsto; itens em{" "}
               <strong>já adquiridos</strong> somam o realizado — ajuste o valor orçado nesses itens para refletir o
               fechado, se necessário.
             </CardDescription>
@@ -544,6 +594,48 @@ export function AdminPanel() {
                     <p className="mt-2 text-xs text-muted-foreground">Visão consolidada do catálogo deste hospital.</p>
                   </div>
                 </div>
+                {dashFinanceiro.porAno.length > 0 ? (
+                  <div className="rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Investimentos por ano</p>
+                        <p className="text-xs text-muted-foreground">
+                          Quebra do previsto, realizado e total conforme o ano de aquisição do catálogo.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 overflow-x-auto rounded-lg border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Ano</TableHead>
+                            <TableHead className="text-right">Itens</TableHead>
+                            <TableHead className="text-right">Unidades</TableHead>
+                            <TableHead className="text-right">Previsto</TableHead>
+                            <TableHead className="text-right">Realizado</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                            <TableHead className="text-right">Sem valor</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {dashFinanceiro.porAno.map((row) => (
+                            <TableRow key={row.ano ?? "sem-ano"}>
+                              <TableCell className="font-medium">{row.ano ?? "Sem ano"}</TableCell>
+                              <TableCell className="text-right tabular-nums">{row.total.linhas}</TableCell>
+                              <TableCell className="text-right tabular-nums">{row.total.unidadesTotal}</TableCell>
+                              <TableCell className="text-right tabular-nums">{brl(row.previsto.total)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{brl(row.realizado.total)}</TableCell>
+                              <TableCell className="text-right font-medium tabular-nums">{brl(row.total.total)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {row.total.linhasSemOrcamento}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                ) : null}
                 {dashFinanceiro.previsto.total + dashFinanceiro.realizado.total > 0 ? (
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">Proporção realizado vs. total</p>
@@ -633,16 +725,15 @@ export function AdminPanel() {
                 </div>
                 <div className="space-y-2">
                   <Label>Valor unitário orçado (R$)</Label>
-                  <Input
-                    inputMode="decimal"
-                    placeholder="Opcional — ex.: 15000 ou 15000,50"
+                  <BrlMoneyInput
+                    placeholder="0,00"
                     className="max-w-[220px]"
-                    value={draft.precoUnitarioOrcado}
-                    onChange={(e) => setDraft((d) => ({ ...d, precoUnitarioOrcado: e.target.value }))}
+                    valueDigits={draft.precoUnitarioOrcado}
+                    onDigitsChange={(precoUnitarioOrcado) => setDraft((d) => ({ ...d, precoUnitarioOrcado }))}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Referência interna: não aparece para o fornecedor. Use para ver se a cotação ficou acima ou abaixo
-                    do previsto.
+                    Opcional. Digite só números; a formatação em reais é automática. Não aparece para o fornecedor — use
+                    para comparar com as cotações recebidas.
                   </p>
                 </div>
               </div>
@@ -668,6 +759,45 @@ export function AdminPanel() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-8">
+          <div className="grid gap-3 rounded-2xl border border-border/70 bg-muted/25 p-4 sm:grid-cols-[minmax(0,1fr)_180px_180px] sm:items-end">
+            <div>
+              <p className="text-sm font-medium text-foreground">Filtros da lista</p>
+              <p className="text-xs text-muted-foreground">
+                Mostrando {equipamentosFiltrados.length} de {(equipamentos.data ?? []).length} equipamento(s).
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Ano</Label>
+              <Select value={equipAnoFilter} onValueChange={setEquipAnoFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os anos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os anos</SelectItem>
+                  {anosEquipamentos.map((ano) => (
+                    <SelectItem key={ano} value={String(ano)}>
+                      {ano}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={equipStatusFilter} onValueChange={setEquipStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="ativos">Na pré-cotação</SelectItem>
+                  <SelectItem value="adquiridos">Já adquiridos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {mostrarAtivos ? (
           <div className="space-y-2">
             <p className="text-sm font-medium text-foreground">Na pré-cotação (convite)</p>
             <div className="overflow-x-auto rounded-lg border">
@@ -684,16 +814,14 @@ export function AdminPanel() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(equipamentos.data ?? []).filter((e) => e.ativo).length === 0 ? (
+                  {equipamentosAtivosFiltrados.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
-                        Nenhum item ativo. Crie um equipamento ou reative um que estava como já adquirido.
+                        Nenhum item ativo encontrado para os filtros selecionados.
                       </TableCell>
                     </TableRow>
                   ) : null}
-                  {(equipamentos.data ?? [])
-                    .filter((e) => e.ativo)
-                    .map((eq) => (
+                  {equipamentosAtivosFiltrados.map((eq) => (
                       <TableRow key={eq.id}>
                         <TableCell className="max-w-[220px] font-medium">
                           <span className="block">{eq.nome}</span>
@@ -723,7 +851,7 @@ export function AdminPanel() {
                                   nome: eq.nome,
                                   descricao: eq.descricao,
                                   quantidade: String(eq.quantidade),
-                                  precoUnitarioOrcado: valorParaInputOrcado(eq.precoUnitarioOrcado),
+                                  precoUnitarioOrcado: reaisToCentsDigitString(eq.precoUnitarioOrcado),
                                 });
                                 setOpenEq(true);
                               }}
@@ -759,8 +887,9 @@ export function AdminPanel() {
               </Table>
             </div>
           </div>
+          ) : null}
 
-          {(equipamentos.data ?? []).some((e) => !e.ativo) ? (
+          {mostrarAdquiridos ? (
             <div className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground">Já adquiridos (fora do convite)</p>
               <div className="overflow-x-auto rounded-lg border border-dashed">
@@ -777,9 +906,14 @@ export function AdminPanel() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(equipamentos.data ?? [])
-                      .filter((e) => !e.ativo)
-                      .map((eq) => (
+                    {equipamentosAdquiridosFiltrados.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                          Nenhum item já adquirido encontrado para os filtros selecionados.
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                    {equipamentosAdquiridosFiltrados.map((eq) => (
                         <TableRow key={eq.id} className="bg-muted/20 text-muted-foreground">
                           <TableCell className="max-w-[220px] font-medium text-foreground/80">
                             <span className="block">{eq.nome}</span>
@@ -803,7 +937,7 @@ export function AdminPanel() {
                                     nome: eq.nome,
                                     descricao: eq.descricao,
                                     quantidade: String(eq.quantidade),
-                                    precoUnitarioOrcado: valorParaInputOrcado(eq.precoUnitarioOrcado),
+                                    precoUnitarioOrcado: reaisToCentsDigitString(eq.precoUnitarioOrcado),
                                   });
                                   setOpenEq(true);
                                 }}
@@ -918,7 +1052,12 @@ export function AdminPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex max-w-md gap-2">
-            <Input placeholder="CNPJ do fornecedor" value={cnpjFilter} onChange={(e) => setCnpjFilter(e.target.value)} />
+            <Input
+              placeholder="CNPJ do fornecedor"
+              className="max-w-[220px] tabular-nums"
+              value={cnpjFilter}
+              onChange={(e) => setCnpjFilter(formatCnpjInput(e.target.value))}
+            />
             <Button type="button" variant="secondary" onClick={() => void cotacoes.refetch()}>
               Filtrar
             </Button>
@@ -1046,7 +1185,7 @@ export function AdminPanel() {
                                 itemId: it.id,
                                 fornecedorNome: c.fornecedorNome,
                                 equipNome: it.equipamento.nome,
-                                precoUnitario: String(Number(it.precoUnitario)),
+                                precoUnitario: reaisToCentsDigitString(it.precoUnitario),
                                 prazoEntrega: String(it.prazoEntrega),
                                 condicoesPagamento: it.condicoesPagamento,
                                 condicoesPagamentoDetalhe: it.condicoesPagamentoDetalhe ?? "",
@@ -1137,10 +1276,9 @@ export function AdminPanel() {
               </p>
               <div className="space-y-2">
                 <Label>Preço unitário cotado (R$)</Label>
-                <Input
-                  inputMode="decimal"
-                  value={itemEdit.precoUnitario}
-                  onChange={(e) => setItemEdit((s) => (s ? { ...s, precoUnitario: e.target.value } : s))}
+                <BrlMoneyInput
+                  valueDigits={itemEdit.precoUnitario}
+                  onDigitsChange={(precoUnitario) => setItemEdit((s) => (s ? { ...s, precoUnitario } : s))}
                 />
               </div>
               <div className="space-y-2">
