@@ -847,7 +847,13 @@ export function AdminPanel() {
                     </TableRow>
                   ) : null}
                   {equipamentosAtivosFiltrados.map((eq) => (
-                      <TableRow key={eq.id}>
+                      <TableRow
+                        key={eq.id}
+                        className={cn(
+                          !eq.publicarCotacao &&
+                            "border-amber-200 bg-amber-50/80 text-amber-950 hover:bg-amber-100/80 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100 dark:hover:bg-amber-950/35",
+                        )}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Checkbox
@@ -858,12 +864,24 @@ export function AdminPanel() {
                                 setPublicarCotacaoEquipamento.mutate({ id: eq.id, publicarCotacao: v === true })
                               }
                             />
-                            <span className="text-xs text-muted-foreground">
+                            <span
+                              className={cn(
+                                "text-xs",
+                                eq.publicarCotacao
+                                  ? "text-muted-foreground"
+                                  : "rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100",
+                              )}
+                            >
                               {eq.publicarCotacao ? "Sim" : "Não"}
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="max-w-[220px] font-medium">
+                        <TableCell
+                          className={cn(
+                            "max-w-[220px] font-medium",
+                            !eq.publicarCotacao && "text-amber-950 dark:text-amber-100",
+                          )}
+                        >
                           <span className="block">{eq.nome}</span>
                           {eq.nomeOriginal ? (
                             <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{eq.nomeOriginal}</span>
@@ -931,8 +949,8 @@ export function AdminPanel() {
 
           {mostrarAdquiridos ? (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Já adquiridos (fora do convite)</p>
-              <div className="overflow-x-auto rounded-lg border border-dashed">
+              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Já adquiridos (fora do convite)</p>
+              <div className="overflow-x-auto rounded-lg border border-dashed border-emerald-300 dark:border-emerald-900/70">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -954,8 +972,11 @@ export function AdminPanel() {
                       </TableRow>
                     ) : null}
                     {equipamentosAdquiridosFiltrados.map((eq) => (
-                        <TableRow key={eq.id} className="bg-muted/20 text-muted-foreground">
-                          <TableCell className="max-w-[220px] font-medium text-foreground/80">
+                        <TableRow
+                          key={eq.id}
+                          className="border-emerald-200 bg-emerald-50/80 text-emerald-950 hover:bg-emerald-100/80 dark:border-emerald-900/60 dark:bg-emerald-950/25 dark:text-emerald-100 dark:hover:bg-emerald-950/35"
+                        >
+                          <TableCell className="max-w-[220px] font-medium text-emerald-950 dark:text-emerald-100">
                             <span className="block">{eq.nome}</span>
                             {eq.nomeOriginal ? (
                               <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{eq.nomeOriginal}</span>
