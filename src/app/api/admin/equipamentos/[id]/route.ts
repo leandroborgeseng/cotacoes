@@ -28,6 +28,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (typeof body.categoria === "string") data.categoria = body.categoria.trim();
   if (typeof body.criticidade === "string") data.criticidade = normalizarCriticidade(body.criticidade);
   if (typeof body.ativo === "boolean") data.ativo = body.ativo;
+  if (typeof body.publicarCotacao === "boolean") data.publicarCotacao = body.publicarCotacao;
   if (typeof body.importRef === "string") data.importRef = body.importRef.trim();
   if (typeof body.nomeOriginal === "string") data.nomeOriginal = body.nomeOriginal.trim();
   if (typeof body.subcategoria === "string") data.subcategoria = body.subcategoria.trim();

@@ -21,7 +21,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     include: {
       hospital: {
         include: {
-          equipamentos: { where: { ativo: true }, orderBy: { nome: "asc" } },
+          equipamentos: { where: { ativo: true, publicarCotacao: true }, orderBy: { nome: "asc" } },
         },
       },
     },

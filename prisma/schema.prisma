@@ -38,27 +38,32 @@ model ConviteCotacao {
 }
 
 model Equipamento {
-  id          String   @id @default(cuid())
-  hospitalId  String
-  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
-  nome        String
-  descricao   String   @default("")
-  quantidade  Int      @default(1)
-  categoria   String   @default("")
-  criticidade String   @default("")
-  ativo       Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id              String   @id @default(cuid())
+  hospitalId      String
+  hospital        Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  nome            String
+  descricao       String   @default("")
+  quantidade      Int      @default(1)
+  categoria       String   @default("")
+  criticidade     String   @default("")
+  ativo           Boolean  @default(true)
+  publicarCotacao Boolean  @default(true)
+  createdAt       DateTime @default(now())
 
-  /** Referência estável no catálogo (ex.: eq_001) — usada para sincronizar importações. */
-  importRef          String @default("")
-  nomeOriginal       String @default("")
-  subcategoria       String @default("")
-  setorHospitalar    String @default("")
-  anvisaClasse       String @default("")
-  tipo               String @default("")
-  requisitosMinimos  String @default("")
+  /**
+   * Referência estável no catálogo (ex.: eq_001) — usada para sincronizar importações.
+   */
+  importRef         String @default("")
+  nomeOriginal      String @default("")
+  subcategoria      String @default("")
+  setorHospitalar   String @default("")
+  anvisaClasse      String @default("")
+  tipo              String @default("")
+  requisitosMinimos String @default("")
 
-  /** Referência interna (R$ / un.): não exposto no portal do fornecedor. */
+  /**
+   * Referência interna (R$ / un.): não exposto no portal do fornecedor.
+   */
   precoUnitarioOrcado Decimal?
   valorTotalOrcado    Decimal?
   previsaoAquisicao   Int?
@@ -68,6 +73,7 @@ model Equipamento {
 
   @@index([hospitalId])
   @@index([ativo])
+  @@index([publicarCotacao])
   @@index([hospitalId, importRef])
 }
 
@@ -90,7 +96,9 @@ model Cotacao {
 
   arquivoPdf String
 
-  /** Token secreto para o fornecedor reabrir o resumo da proposta (link no e-mail). */
+  /**
+   * Token secreto para o fornecedor reabrir o resumo da proposta (link no e-mail).
+   */
   fornecedorViewToken String? @unique
 
   createdAt DateTime @default(now())
@@ -114,8 +122,8 @@ model CotacaoItem {
   precoUnitario             Decimal
   prazoEntrega              Int
   condicoesPagamento        String
-  condicoesPagamentoDetalhe String @default("")
-  observacoes               String @default("")
+  condicoesPagamentoDetalhe String  @default("")
+  observacoes               String  @default("")
 
   @@index([cotacaoId])
   @@index([equipamentoId])

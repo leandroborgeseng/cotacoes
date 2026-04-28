@@ -54,10 +54,10 @@ export async function POST(req: Request) {
 
   const equipIds = new Set(data.itens.map((i) => i.equipamentoId));
   const equipamentos = await prisma.equipamento.findMany({
-    where: { hospitalId: convite.hospitalId, id: { in: [...equipIds] }, ativo: true },
+    where: { hospitalId: convite.hospitalId, id: { in: [...equipIds] }, ativo: true, publicarCotacao: true },
   });
   if (equipamentos.length !== equipIds.size) {
-    return NextResponse.json({ error: "Itens inválidos ou inativos." }, { status: 400 });
+    return NextResponse.json({ error: "Itens inválidos ou não publicados para cotação." }, { status: 400 });
   }
 
   const cotacaoId = randomUUID();

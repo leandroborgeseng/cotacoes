@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BrlMoneyInput } from "@/components/ui/brl-money-input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,6 +28,7 @@ type Equipamento = {
   descricao: string;
   quantidade: number;
   ativo: boolean;
+  publicarCotacao: boolean;
   importRef?: string;
   nomeOriginal?: string;
   setorHospitalar?: string;
@@ -380,7 +382,7 @@ export function AdminPanel() {
       const res = await fetch(`/api/admin/equipamentos/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ativo }),
+        body: JSON.stringify({ ativo, publicarCotacao: ativo }),
       });
       if (!res.ok) throw new Error("Falha ao atualizar status.");
     },
@@ -388,6 +390,22 @@ export function AdminPanel() {
       toast.success(
         ativo ? "Item voltou à lista da pré-cotação." : "Marcado como já adquirido — não aparece mais no convite para fornecedores.",
       );
+      void qc.invalidateQueries({ queryKey: ["admin", "equipamentos", hid] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const setPublicarCotacaoEquipamento = useMutation({
+    mutationFn: async ({ id, publicarCotacao }: { id: string; publicarCotacao: boolean }) => {
+      const res = await fetch(`/api/admin/equipamentos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicarCotacao }),
+      });
+      if (!res.ok) throw new Error("Falha ao atualizar publicação.");
+    },
+    onSuccess: (_, { publicarCotacao }) => {
+      toast.success(publicarCotacao ? "Item publicado para cotação." : "Item removido da cotação pública.");
       void qc.invalidateQueries({ queryKey: ["admin", "equipamentos", hid] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -433,6 +451,7 @@ export function AdminPanel() {
 
   const equipamentosAtivosFiltrados = equipamentosFiltrados.filter((e) => e.ativo);
   const equipamentosAdquiridosFiltrados = equipamentosFiltrados.filter((e) => !e.ativo);
+  const equipamentosPublicadosCount = equipamentosAtivosFiltrados.filter((e) => e.publicarCotacao).length;
   const mostrarAtivos = equipStatusFilter !== "adquiridos";
   const mostrarAdquiridos = equipStatusFilter !== "ativos";
 
@@ -687,8 +706,8 @@ export function AdminPanel() {
           <div>
             <CardTitle className="text-lg">Equipamentos</CardTitle>
             <CardDescription>
-              Itens ativos são os que aparecem no convite para cotação. Use &quot;Já adquirido&quot; para retirar um item
-              da lista sem apagar o histórico. O valor unitário orçado é só para comparar com as cotações recebidas.
+              Use o checkbox &quot;Publicar&quot; para definir quais itens da lista de compras aparecem no convite para
+              cotação. &quot;Já adquirido&quot; tira o item da lista sem apagar o histórico.
             </CardDescription>
           </div>
           <Dialog
@@ -768,7 +787,7 @@ export function AdminPanel() {
             </div>
             <div className="space-y-2">
               <Label>Ano</Label>
-              <Select value={equipAnoFilter} onValueChange={setEquipAnoFilter}>
+              <Select value={equipAnoFilter} onValueChange={(v) => setEquipAnoFilter(v ?? "todos")}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos os anos" />
                 </SelectTrigger>
@@ -784,7 +803,7 @@ export function AdminPanel() {
             </div>
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select value={equipStatusFilter} onValueChange={setEquipStatusFilter}>
+              <Select value={equipStatusFilter} onValueChange={(v) => setEquipStatusFilter(v ?? "todos")}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos os status" />
                 </SelectTrigger>
@@ -799,11 +818,17 @@ export function AdminPanel() {
 
           {mostrarAtivos ? (
           <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">Na pré-cotação (convite)</p>
+            <div className="flex flex-col gap-0.5 sm:flex-row sm:items-end sm:justify-between">
+              <p className="text-sm font-medium text-foreground">Lista de compras</p>
+              <p className="text-xs text-muted-foreground">
+                {equipamentosPublicadosCount} de {equipamentosAtivosFiltrados.length} item(ns) publicados para cotação.
+              </p>
+            </div>
             <div className="overflow-x-auto rounded-lg border">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-24">Publicar</TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead className="w-20 text-right">Qtd</TableHead>
                     <TableHead className="w-24 text-right">Ano</TableHead>
@@ -816,13 +841,28 @@ export function AdminPanel() {
                 <TableBody>
                   {equipamentosAtivosFiltrados.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
                         Nenhum item ativo encontrado para os filtros selecionados.
                       </TableCell>
                     </TableRow>
                   ) : null}
                   {equipamentosAtivosFiltrados.map((eq) => (
                       <TableRow key={eq.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              aria-label={`Publicar ${eq.nome} para cotação`}
+                              checked={eq.publicarCotacao}
+                              disabled={setPublicarCotacaoEquipamento.isPending}
+                              onCheckedChange={(v) =>
+                                setPublicarCotacaoEquipamento.mutate({ id: eq.id, publicarCotacao: v === true })
+                              }
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {eq.publicarCotacao ? "Sim" : "Não"}
+                            </span>
+                          </div>
+                        </TableCell>
                         <TableCell className="max-w-[220px] font-medium">
                           <span className="block">{eq.nome}</span>
                           {eq.nomeOriginal ? (

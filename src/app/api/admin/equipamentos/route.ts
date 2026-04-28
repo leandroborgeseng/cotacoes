@@ -37,6 +37,7 @@ export async function POST(req: Request) {
       nome: base.nome.trim(),
       descricao: base.descricao ?? "",
       ...(typeof body.ativo === "boolean" ? { ativo: body.ativo } : {}),
+      ...(typeof body.publicarCotacao === "boolean" ? { publicarCotacao: body.publicarCotacao } : {}),
     },
   });
   return NextResponse.json(row);

@@ -15,6 +15,7 @@ async function resumoItensPretendidos() {
     await ensureDemoInvite();
     const where = {
       ativo: true,
+      publicarCotacao: true,
       hospital: { cnpj: INSTITUICAO_PROPOSTA.cnpj },
     } as const;
     const [agg, linhas] = await Promise.all([
