@@ -66,6 +66,7 @@ model Equipamento {
    */
   precoUnitarioOrcado Decimal?
   valorTotalOrcado    Decimal?
+  valorRealizado      Decimal?
   previsaoAquisicao   Int?
   justificativa       String   @default("")
 

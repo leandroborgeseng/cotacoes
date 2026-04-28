@@ -35,6 +35,7 @@ type Equipamento = {
   requisitosMinimos?: string;
   precoUnitarioOrcado?: unknown;
   valorTotalOrcado?: unknown;
+  valorRealizado?: unknown;
   previsaoAquisicao?: number | null;
   justificativa?: string;
 };
@@ -153,7 +154,23 @@ function montarRelatorioConsolidado(
   return { colunas, linhas };
 }
 
-/** Soma (quantidade × preço unitário orçado) por lista de equipamentos + totais de itens/unidades. */
+function numberFromMoney(v: unknown) {
+  const n = v === null || v === undefined || v === "" ? NaN : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function valorOrcadoEquip(e: Equipamento) {
+  const totalOrcado = numberFromMoney(e.valorTotalOrcado);
+  if (totalOrcado !== null) return totalOrcado;
+  const unitario = numberFromMoney(e.precoUnitarioOrcado);
+  return unitario === null ? null : e.quantidade * unitario;
+}
+
+function valorRealizadoEquip(e: Equipamento) {
+  return numberFromMoney(e.valorRealizado);
+}
+
+/** Soma o valor orçado por lista usando total orçado ou quantidade × valor unitário. */
 function investimentoPorLista(equips: Equipamento[]) {
   let total = 0;
   let linhasComOrcamento = 0;
@@ -161,25 +178,75 @@ function investimentoPorLista(equips: Equipamento[]) {
   let unidadesTotal = 0;
   for (const e of equips) {
     unidadesTotal += e.quantidade;
-    const totalOrcado =
-      e.valorTotalOrcado === null || e.valorTotalOrcado === undefined || e.valorTotalOrcado === ""
-        ? NaN
-        : Number(e.valorTotalOrcado);
-    if (Number.isFinite(totalOrcado) && totalOrcado > 0) {
-      linhasComOrcamento += 1;
-      total += totalOrcado;
-      continue;
-    }
-    const raw = e.precoUnitarioOrcado;
-    const pu = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
-    if (!Number.isFinite(pu) || pu <= 0) {
+    const valor = valorOrcadoEquip(e);
+    if (valor === null) {
       linhasSemOrcamento += 1;
       continue;
     }
     linhasComOrcamento += 1;
-    total += e.quantidade * pu;
+    total += valor;
   }
   return { total, linhas: equips.length, linhasComOrcamento, linhasSemOrcamento, unidadesTotal };
+}
+
+function realizadoPorLista(equips: Equipamento[]) {
+  let total = 0;
+  let linhasComValor = 0;
+  let linhasSemValor = 0;
+  let unidadesTotal = 0;
+  for (const e of equips) {
+    unidadesTotal += e.quantidade;
+    const valor = valorRealizadoEquip(e);
+    if (valor === null) {
+      linhasSemValor += 1;
+      continue;
+    }
+    linhasComValor += 1;
+    total += valor;
+  }
+  return { total, linhas: equips.length, linhasComValor, linhasSemValor, unidadesTotal };
+}
+
+function comparativoOrcadoRealizado(equips: Equipamento[]) {
+  let orcadoComparado = 0;
+  let realizadoComparado = 0;
+  let linhasComparadas = 0;
+  let linhasSemOrcamento = 0;
+  let linhasSemRealizado = 0;
+  for (const e of equips) {
+    const orcado = valorOrcadoEquip(e);
+    const realizado = valorRealizadoEquip(e);
+    if (orcado === null) linhasSemOrcamento += 1;
+    if (realizado === null) linhasSemRealizado += 1;
+    if (orcado === null || realizado === null) continue;
+    linhasComparadas += 1;
+    orcadoComparado += orcado;
+    realizadoComparado += realizado;
+  }
+  return {
+    orcadoComparado,
+    realizadoComparado,
+    diferenca: orcadoComparado - realizadoComparado,
+    linhasComparadas,
+    linhasSemOrcamento,
+    linhasSemRealizado,
+  };
+}
+
+function itensQueCabemNoSaldo(equips: Equipamento[], saldo: number) {
+  if (saldo <= 0) return { itens: 0, total: 0 };
+  let total = 0;
+  let itens = 0;
+  const ordenados = equips
+    .map((e) => ({ valor: valorOrcadoEquip(e) ?? Infinity }))
+    .filter((e) => Number.isFinite(e.valor) && e.valor > 0)
+    .sort((a, b) => a.valor - b.valor);
+  for (const item of ordenados) {
+    if (total + item.valor > saldo) break;
+    total += item.valor;
+    itens += 1;
+  }
+  return { itens, total };
 }
 
 function anoAquisicao(e: Equipamento) {
@@ -196,7 +263,7 @@ function investimentosPorAno(equips: Equipamento[]) {
   return anos.map((ano) => {
     const list = equips.filter((e) => anoAquisicao(e) === ano);
     const previsto = investimentoPorLista(list.filter((e) => e.ativo));
-    const realizado = investimentoPorLista(list.filter((e) => !e.ativo));
+    const realizado = realizadoPorLista(list.filter((e) => !e.ativo));
     return {
       ano,
       previsto,
@@ -262,6 +329,7 @@ export function AdminPanel() {
       descricao: "",
       quantidade: "1",
       precoUnitarioOrcado: "",
+      valorRealizado: "",
     }),
     [],
   );
@@ -330,11 +398,14 @@ export function AdminPanel() {
     mutationFn: async () => {
       const pDigits = sanitizeBrlCentDigits(draft.precoUnitarioOrcado);
       const orcadoNum = pDigits === "" ? null : centsDigitStringToNumber(pDigits);
+      const realizadoDigits = sanitizeBrlCentDigits(draft.valorRealizado);
+      const realizadoNum = realizadoDigits === "" ? null : centsDigitStringToNumber(realizadoDigits);
       const body: Record<string, unknown> = {
         hospitalId: hid,
         nome: draft.nome.trim(),
         descricao: draft.descricao.trim(),
         quantidade: Number(draft.quantidade) || 1,
+        valorRealizado: realizadoNum,
       };
       if (editing) {
         body.precoUnitarioOrcado = orcadoNum;
@@ -425,9 +496,18 @@ export function AdminPanel() {
 
   const dashFinanceiro = useMemo(() => {
     const list = equipamentos.data ?? [];
+    const ativos = list.filter((e) => e.ativo);
+    const adquiridos = list.filter((e) => !e.ativo);
+    const foraDoConvite = ativos.filter((e) => !e.publicarCotacao);
+    const comparativo = comparativoOrcadoRealizado(adquiridos);
+    const saldoDisponivel = Math.max(0, comparativo.diferenca);
     return {
-      previsto: investimentoPorLista(list.filter((e) => e.ativo)),
-      realizado: investimentoPorLista(list.filter((e) => !e.ativo)),
+      previsto: investimentoPorLista(ativos),
+      realizado: realizadoPorLista(adquiridos),
+      orcadoAdquiridos: investimentoPorLista(adquiridos),
+      comparativo,
+      saldoDisponivel,
+      itensCobertosPeloSaldo: itensQueCabemNoSaldo(foraDoConvite, saldoDisponivel),
       porAno: investimentosPorAno(list),
     };
   }, [equipamentos.data]);
@@ -527,23 +607,39 @@ export function AdminPanel() {
       </header>
 
       {hid ? (
-        <Card className="rounded-3xl border-primary/25 bg-gradient-to-br from-primary/[0.07] via-card to-card shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Dashboard financeiro</CardTitle>
-            <CardDescription>
-              Totais pelo valor total orçado de cada item ou, quando ausente, por{" "}
-              <span className="font-medium text-foreground/90">Σ (quantidade × valor unitário orçado)</span>. Itens{" "}
-              <strong>na pré-cotação</strong> somam o previsto; itens em{" "}
-              <strong>já adquiridos</strong> somam o realizado — ajuste o valor orçado nesses itens para refletir o
-              fechado, se necessário.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+        <details className="group rounded-3xl border border-primary/25 bg-gradient-to-br from-primary/[0.07] via-card to-card text-sm text-card-foreground shadow-md">
+          <summary className="cursor-pointer list-none rounded-3xl px-5 py-5 outline-none transition-colors hover:bg-primary/[0.04] focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-8 [&::-webkit-details-marker]:hidden">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-lg">Dashboard financeiro</CardTitle>
+                <CardDescription className="mt-1">
+                  Totais financeiros em sanfona para liberar espaço ao relatório consolidado.
+                </CardDescription>
+              </div>
+              <div className="flex flex-col gap-1 sm:items-end">
+                <p className="text-xs font-medium text-muted-foreground">Orçado × realizado</p>
+                <p
+                  className={cn(
+                    "text-lg font-semibold tabular-nums",
+                    dashFinanceiro.comparativo.diferenca >= 0
+                      ? "text-emerald-800 dark:text-emerald-300"
+                      : "text-amber-800 dark:text-amber-300",
+                  )}
+                >
+                  {dashFinanceiro.comparativo.diferenca >= 0 ? "Economia " : "Acima "}
+                  {brl(Math.abs(dashFinanceiro.comparativo.diferenca))}
+                </p>
+                <span className="text-xs font-medium text-primary group-open:hidden">Abrir detalhes</span>
+                <span className="hidden text-xs font-medium text-primary group-open:inline">Recolher detalhes</span>
+              </div>
+            </div>
+          </summary>
+          <CardContent className="space-y-6 pb-5">
             {equipamentos.isLoading ? (
               <div className="h-24 animate-pulse rounded-xl bg-muted/60" />
             ) : (
               <>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm">
                     <div className="flex items-center gap-2 text-sm font-medium text-primary">
                       <Target className="size-4 shrink-0" aria-hidden />
@@ -583,12 +679,12 @@ export function AdminPanel() {
                     </dl>
                     <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">{brl(dashFinanceiro.realizado.total)}</p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {dashFinanceiro.realizado.linhasSemOrcamento > 0
-                        ? `${dashFinanceiro.realizado.linhasSemOrcamento} item(ns) sem valor orçado`
-                        : "Todos os itens têm valor orçado para o total em R$."}
+                      {dashFinanceiro.realizado.linhasSemValor > 0
+                        ? `${dashFinanceiro.realizado.linhasSemValor} item(ns) sem valor realizado`
+                        : "Todos os itens adquiridos têm valor realizado."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm sm:col-span-2 lg:col-span-1">
+                  <div className="rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm">
                     <div className="flex items-center gap-2 text-sm font-medium text-foreground/90">
                       <CircleDollarSign className="size-4 shrink-0" aria-hidden />
                       Projeto (previsto + realizado)
@@ -612,6 +708,49 @@ export function AdminPanel() {
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">Visão consolidada do catálogo deste hospital.</p>
                   </div>
+                  <div
+                    className={cn(
+                      "rounded-2xl border p-5 shadow-sm sm:col-span-2 xl:col-span-1",
+                      dashFinanceiro.comparativo.diferenca >= 0
+                        ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/25"
+                        : "border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/25",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "flex items-center gap-2 text-sm font-medium",
+                        dashFinanceiro.comparativo.diferenca >= 0
+                          ? "text-emerald-800 dark:text-emerald-300"
+                          : "text-amber-800 dark:text-amber-300",
+                      )}
+                    >
+                      <CircleDollarSign className="size-4 shrink-0" aria-hidden />
+                      Orçado × realizado
+                    </div>
+                    <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                      <div>
+                        <dt className="text-muted-foreground">Orçado adquirido</dt>
+                        <dd className="font-semibold tabular-nums">{brl(dashFinanceiro.comparativo.orcadoComparado)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Realizado</dt>
+                        <dd className="font-semibold tabular-nums">{brl(dashFinanceiro.comparativo.realizadoComparado)}</dd>
+                      </div>
+                    </dl>
+                    <p className="mt-3 text-3xl font-semibold tabular-nums tracking-tight">
+                      {brl(Math.abs(dashFinanceiro.comparativo.diferenca))}
+                    </p>
+                    <p className="mt-1 text-xs font-medium">
+                      {dashFinanceiro.comparativo.diferenca >= 0 ? "Economizado" : "Acima do orçado"}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {dashFinanceiro.comparativo.linhasComparadas === 0
+                        ? "Informe valor realizado nos itens adquiridos para calcular a economia."
+                        : dashFinanceiro.saldoDisponivel > 0
+                          ? `Saldo cobre até ${dashFinanceiro.itensCobertosPeloSaldo.itens} item(ns) fora do convite (${brl(dashFinanceiro.itensCobertosPeloSaldo.total)}).`
+                          : "Sem saldo positivo para puxar itens fora do convite."}
+                    </p>
+                  </div>
                 </div>
                 {dashFinanceiro.porAno.length > 0 ? (
                   <div className="rounded-2xl border border-border/70 bg-card/90 p-5 shadow-sm">
@@ -633,7 +772,7 @@ export function AdminPanel() {
                             <TableHead className="text-right">Previsto</TableHead>
                             <TableHead className="text-right">Realizado</TableHead>
                             <TableHead className="text-right">Total</TableHead>
-                            <TableHead className="text-right">Sem valor</TableHead>
+                            <TableHead className="text-right">Sem orçamento</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -669,14 +808,14 @@ export function AdminPanel() {
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {Math.round((dashFinanceiro.realizado.total / (dashFinanceiro.previsto.total + dashFinanceiro.realizado.total)) * 100)}% do
-                      valor consolidado já está na base de adquiridos (por valores orçados cadastrados).
+                      valor consolidado já está na base de adquiridos (por valores realizados cadastrados).
                     </p>
                   </div>
                 ) : null}
               </>
             )}
           </CardContent>
-        </Card>
+        </details>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -753,6 +892,18 @@ export function AdminPanel() {
                   <p className="text-xs text-muted-foreground">
                     Opcional. Digite só números; a formatação em reais é automática. Não aparece para o fornecedor — use
                     para comparar com as cotações recebidas.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Valor realizado/fechado (R$)</Label>
+                  <BrlMoneyInput
+                    placeholder="0,00"
+                    className="max-w-[220px]"
+                    valueDigits={draft.valorRealizado}
+                    onDigitsChange={(valorRealizado) => setDraft((d) => ({ ...d, valorRealizado }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Preencha quando o item for adquirido. Este valor alimenta a economia orçado × realizado.
                   </p>
                 </div>
               </div>
@@ -910,6 +1061,7 @@ export function AdminPanel() {
                                   descricao: eq.descricao,
                                   quantidade: String(eq.quantidade),
                                   precoUnitarioOrcado: reaisToCentsDigitString(eq.precoUnitarioOrcado),
+                                  valorRealizado: reaisToCentsDigitString(eq.valorRealizado),
                                 });
                                 setOpenEq(true);
                               }}
@@ -959,6 +1111,7 @@ export function AdminPanel() {
                       <TableHead className="w-24 text-right">Ano</TableHead>
                       <TableHead className="w-28 text-right">Orçado (un.)</TableHead>
                       <TableHead className="w-28 text-right">Orçado total</TableHead>
+                      <TableHead className="w-28 text-right">Realizado</TableHead>
                       <TableHead>Setor</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -966,7 +1119,7 @@ export function AdminPanel() {
                   <TableBody>
                     {equipamentosAdquiridosFiltrados.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
                           Nenhum item já adquirido encontrado para os filtros selecionados.
                         </TableCell>
                       </TableRow>
@@ -986,6 +1139,7 @@ export function AdminPanel() {
                           <TableCell className="text-right text-sm tabular-nums">{eq.previsaoAquisicao || "—"}</TableCell>
                           <TableCell className="text-right text-sm tabular-nums">{money(eq.precoUnitarioOrcado)}</TableCell>
                           <TableCell className="text-right text-sm tabular-nums">{money(eq.valorTotalOrcado)}</TableCell>
+                          <TableCell className="text-right text-sm font-medium tabular-nums">{money(eq.valorRealizado)}</TableCell>
                           <TableCell className="max-w-[140px] text-sm">{eq.setorHospitalar || "—"}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex flex-wrap justify-end gap-2">
@@ -999,6 +1153,7 @@ export function AdminPanel() {
                                     descricao: eq.descricao,
                                     quantidade: String(eq.quantidade),
                                     precoUnitarioOrcado: reaisToCentsDigitString(eq.precoUnitarioOrcado),
+                                    valorRealizado: reaisToCentsDigitString(eq.valorRealizado),
                                   });
                                   setOpenEq(true);
                                 }}

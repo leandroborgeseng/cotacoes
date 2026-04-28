@@ -17,7 +17,7 @@ function str(o: Record<string, unknown>, ...keys: string[]): string {
   return "";
 }
 
-function parseDecimalOrNull(raw: unknown): Prisma.Decimal | null {
+export function parseDecimalOrNull(raw: unknown): Prisma.Decimal | null {
   if (raw === null || raw === undefined || raw === "") return null;
   if (typeof raw === "number") {
     return Number.isFinite(raw) && raw >= 0 ? new Prisma.Decimal(raw) : null;

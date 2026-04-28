@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ensureDemoInvite } from "@/lib/ensure-demo-invite";
 import { prisma } from "@/lib/prisma";
-import { equipamentoFromImportRow } from "@/lib/equipamento-map";
+import { equipamentoFromImportRow, parseDecimalOrNull } from "@/lib/equipamento-map";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -38,6 +38,7 @@ export async function POST(req: Request) {
       descricao: base.descricao ?? "",
       ...(typeof body.ativo === "boolean" ? { ativo: body.ativo } : {}),
       ...(typeof body.publicarCotacao === "boolean" ? { publicarCotacao: body.publicarCotacao } : {}),
+      ...(body.valorRealizado !== undefined ? { valorRealizado: parseDecimalOrNull(body.valorRealizado) } : {}),
     },
   });
   return NextResponse.json(row);

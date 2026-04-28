@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { normalizarCriticidade, parsePrecoUnitarioOrcado } from "@/lib/equipamento-map";
+import { normalizarCriticidade, parseDecimalOrNull, parsePrecoUnitarioOrcado } from "@/lib/equipamento-map";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -48,6 +48,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
       const d = parsePrecoUnitarioOrcado({ precoUnitarioOrcado: orcadoRaw });
       if (d) data.precoUnitarioOrcado = d;
     }
+  }
+  const realizadoRaw = body.valorRealizado ?? body.valor_realizado;
+  if (realizadoRaw !== undefined) {
+    data.valorRealizado = realizadoRaw === null || realizadoRaw === "" ? null : parseDecimalOrNull(realizadoRaw);
   }
 
   const row = await prisma.equipamento.update({
