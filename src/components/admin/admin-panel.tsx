@@ -376,24 +376,6 @@ export function AdminPanel() {
     return montarRelatorioConsolidado(hid, equipamentos.data ?? [], cotacoes.data ?? []);
   }, [hid, equipamentos.data, cotacoes.data]);
 
-  const createConvite = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/admin/convites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hospitalId: hid }),
-      });
-      if (!res.ok) throw new Error("Falha ao criar convite.");
-      return (await res.json()) as { token: string };
-    },
-    onSuccess: (data) => {
-      const url = `${typeof window !== "undefined" ? window.location.origin : ""}/c/${data.token}`;
-      void navigator.clipboard.writeText(url).catch(() => {});
-      toast.success("Link copiado para a área de transferência.", { description: url });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const saveEquip = useMutation({
     mutationFn: async () => {
       const pDigits = sanitizeBrlCentDigits(draft.precoUnitarioOrcado);
@@ -529,7 +511,9 @@ export function AdminPanel() {
     });
   }, [equipAnoFilter, equipStatusFilter, equipamentos.data]);
 
-  const equipamentosAtivosFiltrados = equipamentosFiltrados.filter((e) => e.ativo);
+  const equipamentosAtivosFiltrados = equipamentosFiltrados
+    .filter((e) => e.ativo)
+    .sort((a, b) => Number(b.publicarCotacao) - Number(a.publicarCotacao));
   const equipamentosAdquiridosFiltrados = equipamentosFiltrados.filter((e) => !e.ativo);
   const equipamentosPublicadosCount = equipamentosAtivosFiltrados.filter((e) => e.publicarCotacao).length;
   const mostrarAtivos = equipStatusFilter !== "adquiridos";
@@ -818,7 +802,7 @@ export function AdminPanel() {
         </details>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="max-w-md">
         <div className="space-y-2">
           <Label>Hospital</Label>
           <select
@@ -832,11 +816,6 @@ export function AdminPanel() {
               </option>
             ))}
           </select>
-        </div>
-        <div className="flex items-end">
-          <Button type="button" className="w-full" onClick={() => createConvite.mutate()} disabled={!hid || createConvite.isPending}>
-            Gerar novo link de convite
-          </Button>
         </div>
       </div>
 
@@ -1189,15 +1168,26 @@ export function AdminPanel() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-3xl border-border/60 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg">Relatório consolidado</CardTitle>
-          <CardDescription>
-            Todas as cotações deste hospital em uma única tabela: cada linha é um equipamento e cada coluna é uma
-            proposta de fornecedor (preço unitário e prazo). Role horizontalmente se houver muitas cotações.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <details className="group rounded-3xl border border-border/60 bg-card text-sm text-card-foreground shadow-sm">
+        <summary className="cursor-pointer list-none rounded-3xl px-5 py-5 outline-none transition-colors hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-8 [&::-webkit-details-marker]:hidden">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-lg">Relatório consolidado</CardTitle>
+              <CardDescription className="mt-1">
+                Todas as cotações deste hospital em uma única tabela, recolhida para liberar espaço no painel.
+              </CardDescription>
+            </div>
+            <div className="flex flex-col gap-1 sm:items-end">
+              <p className="text-xs font-medium text-muted-foreground">Resumo</p>
+              <p className="text-sm font-semibold tabular-nums text-foreground">
+                {relatorioConsolidado.colunas.length} proposta(s) · {relatorioConsolidado.linhas.length} item(ns)
+              </p>
+              <span className="text-xs font-medium text-primary group-open:hidden">Abrir relatório</span>
+              <span className="hidden text-xs font-medium text-primary group-open:inline">Recolher relatório</span>
+            </div>
+          </div>
+        </summary>
+        <CardContent className="pb-5">
           {!hid || cotacoes.isLoading ? (
             <div className="h-32 animate-pulse rounded-xl bg-muted/50" />
           ) : relatorioConsolidado.colunas.length === 0 ? (
@@ -1254,7 +1244,7 @@ export function AdminPanel() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </details>
 
       <Card className="rounded-3xl border-border/60 shadow-sm">
         <CardHeader>

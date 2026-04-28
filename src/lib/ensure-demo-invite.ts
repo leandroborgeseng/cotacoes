@@ -33,7 +33,20 @@ async function syncDemoCatalog(hospitalId: string): Promise<void> {
     if (existing) {
       await prisma.equipamento.update({
         where: { id: existing.id },
-        data: row,
+        data: {
+          categoria: row.categoria,
+          criticidade: row.criticidade,
+          importRef: row.importRef,
+          nomeOriginal: row.nomeOriginal,
+          subcategoria: row.subcategoria,
+          setorHospitalar: row.setorHospitalar,
+          anvisaClasse: row.anvisaClasse,
+          tipo: row.tipo,
+          requisitosMinimos: row.requisitosMinimos,
+          valorTotalOrcado: row.valorTotalOrcado,
+          previsaoAquisicao: row.previsaoAquisicao,
+          justificativa: row.justificativa,
+        },
       });
     } else {
       await prisma.equipamento.create({
